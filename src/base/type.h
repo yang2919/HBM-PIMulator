@@ -13,9 +13,21 @@ using Clk_t     = int64_t;            // Clock cycle
 using Addr_t    = int64_t;            // Plain address as seen by the OS
 using AddrVec_t = std::vector<int>;   // Device address vector as is sent to the device from the controller
 
+enum LOCATE{
+    BANK,
+    GRF,
+    CRF
+};
+
+typedef struct POperand_{ // PIM specific address struct
+    LOCATE loc;
+    int addr;
+}POperand;
+
+using POperand_t = std::vector<POperand>;
+
 template<typename T>
 using Registry_t = std::unordered_map<std::string, T>;
-
 
 // From WG21 P2098R1 Proposing std::is_specialization_of
 template<class T, template<class...> class Primary>
