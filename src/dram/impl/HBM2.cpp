@@ -8,16 +8,20 @@ class HBM2 : public IDRAM, public Implementation {
 
   public:
     inline static const std::map<std::string, Organization> org_presets = {
-      //   name     density   DQ    Ch Pch  Bg Ba   Ro     Co
+      //   name     density   DQ    Ra Ch  Bg Ba   Ro     Co
       {"HBM2_2Gb",   {2<<10,  128,  {1, 2,  4,  2, 1<<14, 1<<6}}},
       {"HBM2_4Gb",   {4<<10,  128,  {1, 2,  4,  4, 1<<14, 1<<6}}},
       {"HBM2_8Gb",   {6<<10,  128,  {1, 2,  4,  4, 1<<15, 1<<6}}},
+      {"HBM2_PIM_6Gb", {8<<10,  128,  {2, 1<<7,  4,  4, 1<<15, 1<<6}}},
     };
 
     inline static const std::map<std::string, std::vector<int>> timing_presets = {
-      //   name       rate   nBL  nCL  nRCDRD  nRCDWR  nRP  nRAS  nRC  nWR  nRTPS  nRTPL  nCWL  nCCDS  nCCDL  nRRDS  nRRDL  nWTRS  nWTRL  nRTW  nFAW  nRFC  nRFCSB  nREFI  nREFISB  nRREFD  tCK_ps
-      {"HBM2_2Gbps",  {2000,   4,   7,    7,      7,     7,   17,  19,   8,    2,     3,    2,    1,      2,     2,     3,     3,     4,    3,    15,   -1,   160,   3900,     -1,      8,   1000}},
+      //   name       rate   nBL  nCL  nRCDRD  nRCDWR  nRP  nRAS  nRC  nWR  nRTPS  nRTPL  nCWL  nCCDS  nCCDL  nRRDS  nRRDL  nWTRS  nWTRL  nRTW  nFAW  nRFC  nRFCSB  nREFI  nREFISB  nRREFD   nALU  nDATA  nCON  nMOD  nRWR  tCK_ps
+      {"HBM2_2Gbps",  {2000,   4,   7,    7,      7,     7,   17,  19,   8,    2,     3,    2,    1,      2,     2,     3,     3,     4,    3,    15,   -1,   160,   3900,     -1,      8,     16,    16,    4,   4,    4,    1000}},
+      {"HBM2_PIM_6Gb_timing",  {2000,   4,   7,    7,      7,     7,   17,  19,   8,    2,     3,    2,    1,      2,     2,     3,     3,     4,    3,    15,   -1,   160,   3900,     -1,      8,   16,    16,    4,   4,    4,  1000}},
       // TODO: Find more sources on HBM2 timings...
+      // Todo: 추가할 timing parameter 결정. nALU -> 4*4, nDATA -> 4*4, nCON -> 1*4. Mode transition timing parameter랑, AB mode에서 PU register에 write할 때 timing parameter 필요.
+      // nALU, nDATA, nCON, nMOD, nRWR
     };
 
 
@@ -27,7 +31,7 @@ class HBM2 : public IDRAM, public Implementation {
     const int m_internal_prefetch_size = 2;
 
     inline static constexpr ImplDef m_levels = {
-      "channel", "pseudochannel", "bankgroup", "bank", "row", "column",    
+      "rank", "channel", "bankgroup", "bank", "row", "column",    
     };
 
 
@@ -38,7 +42,9 @@ class HBM2 : public IDRAM, public Implementation {
       "ACT", 
       "PRE", "PREA",
       "RD",  "WR",  "RDA",  "WRA",
-      "REFab", "REFsb"
+      "REFab", "REFsb",
+      "ALU", "DATA", "CON",
+      "TMOD", "RWR"
     };
 
     inline static const ImplLUT m_command_scopes = LUT (
@@ -47,6 +53,8 @@ class HBM2 : public IDRAM, public Implementation {
         {"PRE",   "bank"},    {"PREA",   "channel"},
         {"RD",    "column"},  {"WR",     "column"}, {"RDA",   "column"}, {"WRA",   "column"},
         {"REFab", "channel"}, {"REFsb",  "bank"},
+        {"ALU", "rank"}, {"DATA", "rank"}, {"CON", "rank"},
+        {"TMOD", "rank"}, {"RWR", "rank"}
       }
     );
 
@@ -61,7 +69,11 @@ class HBM2 : public IDRAM, public Implementation {
         {"RDA",   {false,  true,    true,    false}},
         {"WRA",   {false,  true,    true,    false}},
         {"REFab", {false,  false,   false,   true }},
-        {"REFsb", {false,  false,   false,   true }},
+        {"ALU",   {false,  false,   true,    false}},
+        {"DATA",  {false,  false,   true,    false}},
+        {"CON",   {false,  false,   false,   false}},
+        {"TMOD",  {false,  false,   false,   false}},
+        {"RWR",   {false,  false,   false,   false}},
       }
     );
 
@@ -74,6 +86,24 @@ class HBM2 : public IDRAM, public Implementation {
         {"read", "RD"}, {"write", "WR"}, {"all-bank-refresh", "REFab"}, {"per-bank-refresh", "REFsb"},
       }
     );
+
+    inline static constexpr ImplDef m_pim_requests = {
+      "MAC", "MUL", "MAD", "ADD", "JUMP", "EXIT", "NOP", "FILL", "MOV"
+    };
+
+    inline static const ImplLUT m_pim_translations = LUT(
+      m_pim_requests, m_commands, {
+        {"MAC", "ALU"},
+        {"MUL", "ALU"},
+        {"MAD", "ALU"},
+        {"ADD", "ALU"},
+        {"JUMP", "CON"},
+        {"EXIT", "CON"},
+        {"NOP", "CON"},
+        {"FILL", "DATA"},
+        {"MOV", "DATA"},
+      }
+    )
 
    
   /************************************************
@@ -88,6 +118,8 @@ class HBM2 : public IDRAM, public Implementation {
       "nRTW",
       "nFAW",
       "nRFC", "nRFCSB", "nREFI", "nREFISB", "nRREFD",
+      "nALU", "nDATA", "nCON",
+      "nTMOD", "nRWR",
       "tCK_ps"
     };
 
@@ -101,8 +133,8 @@ class HBM2 : public IDRAM, public Implementation {
 
     inline static const ImplLUT m_init_states = LUT (
       m_levels, m_states, {
-        {"channel",       "N/A"}, 
-        {"pseudochannel", "N/A"}, 
+        {"rank",       "N/A"}, 
+        {"channel",    "N/A"}, 
         {"bankgroup",     "N/A"},
         {"bank",          "Closed"},
         {"row",           "Closed"},
