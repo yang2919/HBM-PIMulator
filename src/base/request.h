@@ -17,13 +17,31 @@ struct Request {
   // 0 = Read, 1 = Write. The device spec defines all others
   struct Type {
     enum : int {
-      Read = 0, 
-      Write,
+      SB,
+      AB,
+      PIM
     };
   };
 
+  enum OPCODE{
+        READ,
+        WRITE,
+        ADD,
+        MUL,
+        MAC,
+        MAD,
+        MOV,
+        FILL,
+        NOP,
+        JUMP,
+        EXIT
+  };
+
+  POperand_t poperand;
+
   int type_id = -1;    // An identifier for the type of the request
   int source_id = -1;  // An identifier for where the request is coming from (e.g., which core)
+  int operation_id = -1;
 
   int command = -1;          // The command that need to be issued to progress the request
   int final_command = -1;    // The final command that is needed to finish the request
@@ -41,6 +59,8 @@ struct Request {
   Request(Addr_t addr, int type);
   Request(AddrVec_t addr_vec, int type);
   Request(Addr_t addr, int type, int source_id, std::function<void(Request&)> callback);
+
+  Request(Addr_t addr, int type, int opcode, POperand_t pop);
 };
 
 

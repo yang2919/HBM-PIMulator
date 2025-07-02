@@ -77,7 +77,7 @@ class HBMPIMTrace : public IFrontEnd, public Implementation {
 
     void tick() override {
       const Trace& t = m_trace[m_curr_trace_idx];
-      bool request_sent = m_memory_system->send({t.addr, t.is_write ? Request::Type::Write : Request::Type::Read});
+      bool request_sent = m_memory_system->send({t.addr, t.mode, t.opcode, t.poperand});
       // Todo: Request 재정의 후 구문 수정 필요. 재정의 먼저 진행.
       if (request_sent) {
         m_curr_trace_idx = (m_curr_trace_idx + 1) % m_trace_length;
