@@ -91,7 +91,7 @@ class HBM2 : public IDRAM, public Implementation {
       "MAC", "MUL", "MAD", "ADD", "JUMP", "EXIT", "NOP", "FILL", "MOV"
     };
 
-    inline static const ImplLUT m_pim_translations = LUT(
+    inline static const ImplLUT m_pim_requests_translations = LUT(
       m_pim_requests, m_commands, {
         {"MAC", "ALU"},
         {"MUL", "ALU"},

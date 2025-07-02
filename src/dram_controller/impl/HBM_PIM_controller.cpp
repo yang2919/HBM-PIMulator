@@ -111,18 +111,18 @@ public:
     }
 
     bool send(Request &req) override {
-        if (req.type == Type::AIM) {
+        if (req.type_id == Type::PIM) {
             if ((m_write_buffer.size() != 0) || (m_read_buffer.size() != 0))
                 return false;
-            req.final_command = m_dram->m_aim_request_translations((int)req.opcode);
+            req.final_command = m_dram->m_pim_requests_translation((int)req.opcode);
         } else {
-            if (m_aim_buffer.size() != 0)
+            if (m_pim_buffer.size() != 0)
                 return false;
             req.final_command = m_dram->m_request_translations((int)req.type);
         }
 
         // Forward existing write requests to incoming read requests
-        if (req.type == Type::Read) {
+        if (req.operation_id == Opcode::READ) {
             auto compare_addr = [req](const Request &wreq) {
                 return wreq.addr == req.addr;
             };
@@ -137,12 +137,12 @@ public:
         // Else, enqueue them to corresponding buffer based on request type id
         bool is_success = false;
         req.arrive = m_clk;
-        if (req.type == Type::Read) {
+        if (req.operation_id == Opcode::READ) {
             is_success = m_read_buffer.enqueue(req);
-        } else if (req.type == Type::Write) {
+        } else if (req.operation_id == Opcode::WRITE) {
             is_success = m_write_buffer.enqueue(req);
-        } else if (req.type == Type::AIM) {
-            is_success = m_aim_buffer.enqueue(req);
+        } else if (req.type == Type::PIM) {
+            is_success = m_pim_buffer.enqueue(req);
         } else {
             throw std::runtime_error("Invalid request type!");
         }
@@ -156,10 +156,10 @@ public:
     };
 
     bool priority_send(Request &req) override {
-        if (req.type == Type::AIM)
-            req.final_command = m_dram->m_aim_request_translations((int)req.opcode);
+        if (req.type == Type::PIM)
+            req.final_command = m_dram->m_pim_requests_translation((int)req.operation_id);
         else
-            req.final_command = m_dram->m_request_translations((int)req.type);
+            req.final_command = m_dram->m_request_translations((int)req.operation_id);
 
         bool is_success = false;
         is_success = m_priority_buffer.enqueue(req);
@@ -188,58 +188,39 @@ public:
 
         // 4. Finally, issue the commands to serve the request
         if (request_found) {
-            if ((req_it->opcode == Opcode::ISR_EOC) || (req_it->opcode == Opcode::ISR_SYNC)) {
-                req_it->depart = m_clk;
-                pending_reads.push_back(*req_it);
-                buffer->remove(req_it);
-                // m_logger->info("[CLK {}] EOC/SYNC ready for callback", m_clk);
-            } else {
-                // Todo: HBM-PIM mode transition.
-                bool requires_reg_RW_mode = false;
+            // If we find a real request to serve
+            // m_logger->info("[CLK {}] Issuing {} for {}", m_clk, std::string(m_dram->m_commands(req_it->command)).c_str(), req_it->str());
+            if (req_it->issue == -1)
+                req_it->issue = m_clk - 1;
+            m_dram->issue_command(req_it->command, req_it->addr_vec);
+            s_num_commands[req_it->command] += 1;
+
+            // If we are issuing the last command, set depart clock cycle and move the request to the pending_reads queue
+            if (req_it->command == req_it->final_command) {
+                int latency = m_dram->m_command_latencies(req_it->command);
+                assert(latency > 0);
+                req_it->depart = m_clk + latency;
+                if (req_it->is_reader()) {
+                    pending_reads.push_back(*req_it);
+                } else {
+                    pending_writes.push_back(*req_it);
+                }
                 if (req_it->type == Type::AIM) {
-                    if (AiMISRInfo::opcode_requires_reg_RW_mod(req_it->opcode)) {
-                        requires_reg_RW_mode = true;
-                    }
+                    s_num_AiM_cycles[req_it->opcode] += (m_clk - req_it->issue);
+                } else {
+                    s_num_RW_cycles[req_it->type] += (m_clk - req_it->issue);
                 }
-
-                if (requires_reg_RW_mode ^ is_reg_RW_mode) {
-                    req_it->command = m_dram->m_commands("TMOD");
-                    is_reg_RW_mode = !is_reg_RW_mode;
-                }
-
-                // If we find a real request to serve
-                // m_logger->info("[CLK {}] Issuing {} for {}", m_clk, std::string(m_dram->m_commands(req_it->command)).c_str(), req_it->str());
-                if (req_it->issue == -1)
-                    req_it->issue = m_clk - 1;
-                m_dram->issue_command(req_it->command, req_it->addr_vec);
-                s_num_commands[req_it->command] += 1;
-
-                // If we are issuing the last command, set depart clock cycle and move the request to the pending_reads queue
-                if (req_it->command == req_it->final_command) {
-                    int latency = m_dram->m_command_latencies(req_it->command);
-                    assert(latency > 0);
-                    req_it->depart = m_clk + latency;
-                    if (req_it->is_reader()) {
-                        pending_reads.push_back(*req_it);
-                    } else {
-                        pending_writes.push_back(*req_it);
-                    }
-                    if (req_it->type == Type::AIM) {
-                        s_num_AiM_cycles[req_it->opcode] += (m_clk - req_it->issue);
-                    } else {
-                        s_num_RW_cycles[req_it->type] += (m_clk - req_it->issue);
-                    }
-                    // else if (req_it->type == Type::Write) {
-                    //     // TODO: Add code to update statistics
-                    // }
+                // else if (req_it->type == Type::Write) {
+                //     // TODO: Add code to update statistics
+                // }
+                buffer->remove(req_it);
+            } else if (req_it->type != Type::AIM) {
+                if (m_dram->m_command_meta(req_it->command).is_opening) {
+                    m_active_buffer.enqueue(*req_it);
                     buffer->remove(req_it);
-                } else if (req_it->type != Type::AIM) {
-                    if (m_dram->m_command_meta(req_it->command).is_opening) {
-                        m_active_buffer.enqueue(*req_it);
-                        buffer->remove(req_it);
-                    }
                 }
             }
+            
         } else if (m_read_buffer.size() == 0 && m_write_buffer.size() == 0 && m_aim_buffer.size() == 0 && pending_reads.size() == 0 && pending_writes.size() == 0) {
             // if (m_channel_id == 0)
             // m_logger->info("[CLK {}] CH0 IDLE", m_clk);

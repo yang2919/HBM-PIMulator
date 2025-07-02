@@ -36,6 +36,9 @@ class IDRAM : public Clocked<IDRAM> {
     SpecDef m_requests;                                     // The definition of all requests supported
     SpecLUT<Command_t> m_request_translations{m_requests};  // A LUT of the final DRAM commands needed by every request
 
+    SpecDef m_pim_requests;
+    SpecLUT<Command_t> m_pim_requests_translation{m_pim_requests};
+
     // TODO: make this a priority queue
     std::vector<FutureAction> m_future_actions;  // A vector of requests that requires future state changes
 
@@ -160,6 +163,8 @@ class IDRAM : public Clocked<IDRAM> {
   IDRAM::m_command_meta = m_command_meta; \
   IDRAM::m_requests = m_requests; \
   IDRAM::m_request_translations = m_request_translations; \
+  IDRAM::m_pim_requests = m_pim_requests; \
+  IDRAM::m_pim_requests_translation = m_pim_requests_translation; \
   IDRAM::m_states = m_states; \
   IDRAM::m_init_states = m_init_states; \
   IDRAM::m_timings = m_timings; \

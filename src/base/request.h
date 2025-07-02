@@ -15,27 +15,6 @@ struct Request {
 
   // Basic request id convention
   // 0 = Read, 1 = Write. The device spec defines all others
-  struct Type {
-    enum : int {
-      SB,
-      AB,
-      PIM
-    };
-  };
-
-  enum OPCODE{
-        READ,
-        WRITE,
-        ADD,
-        MUL,
-        MAC,
-        MAD,
-        MOV,
-        FILL,
-        NOP,
-        JUMP,
-        EXIT
-  };
 
   POperand_t poperand;
 
@@ -61,6 +40,7 @@ struct Request {
   Request(Addr_t addr, int type, int source_id, std::function<void(Request&)> callback);
 
   Request(Addr_t addr, int type, int opcode, POperand_t pop);
+  Request(int opcode);
 };
 
 

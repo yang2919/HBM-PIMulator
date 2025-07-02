@@ -6,8 +6,8 @@
 
 namespace Ramulator {
 
-class GenericDRAMSystem final : public IMemorySystem, public Implementation {
-  RAMULATOR_REGISTER_IMPLEMENTATION(IMemorySystem, GenericDRAMSystem, "GenericDRAM", "A generic DRAM-based memory system.");
+class HBMPIMSystem  final : public IMemorySystem, public Implementation {
+  RAMULATOR_REGISTER_IMPLEMENTATION(IMemorySystem, HBMPIMSystem, "HBMPIMSystem", "A HBM-PIM-based memory system.");
 
   protected:
     Clk_t m_clk = 0;
@@ -15,11 +15,13 @@ class GenericDRAMSystem final : public IMemorySystem, public Implementation {
     IAddrMapper*  m_addr_mapper;
     std::vector<IDRAMController*> m_controllers;
 
+    int current_mode = Type::SB;
+
   public:
     int s_num_read_requests = 0;
     int s_num_write_requests = 0;
-    int s_num_other_requests = 0;
-
+    int s_num_pim_requests = 0;
+    int s_num_trans_requests = 0;
 
   public:
     void init() override { 
@@ -47,26 +49,81 @@ class GenericDRAMSystem final : public IMemorySystem, public Implementation {
 
     void setup(IFrontEnd* frontend, IMemorySystem* memory_system) override { }
 
-    bool send(Request req) override {
-      m_addr_mapper->apply(req);
-      int channel_id = req.addr_vec[0];
-      bool is_success = m_controllers[channel_id]->send(req);
+    bool send_all(Request req, int& request_cnt){
+      for (int channel_id = 0; channel_id < m_controllers.size(); channel_id++) {
+        // m_logger->info("[CLK {}] 2- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
+        if (m_controllers[channel_id]->send(req) == false) {
+          return false;
+        }
+      }
+      return true;
+    }
 
-      if (is_success) {
-        switch (req.type_id) {
-          case Request::Type::Read: {
-            s_num_read_requests++;
-            break;
+    bool send(Request req) override {
+      // SB operation
+      if (req.type_id == Type::SB){ // Type Transition
+        if (current_mode != Type::SB){
+          if (current_mode == Type::PIM){
+            Request r = Request(Opcode::TMOD_P);
+            if(send_all(r, s_num_trans_requests) == false) return false;
+            current_mode = Type::AB;
           }
-          case Request::Type::Write: {
-            s_num_write_requests++;
-            break;
-          }
-          default: {
-            s_num_other_requests++;
-            break;
+          if (current_mode == Type::AB){
+            Request r = Request(Opcode::TMOD_A);
+            if(send_all(r, s_num_trans_requests) == false) return false;
+            current_mode = Type::SB;
           }
         }
+        
+        m_addr_mapper->apply(req);
+        int channel_id = req.addr_vec[0];
+        bool is_success = m_controllers[channel_id]->send(req);
+
+        if (is_success) {
+          switch (req.operation_id) {
+            case Opcode::READ: {
+              s_num_read_requests++;
+              break;
+            }
+            case Opcode::WRITE: {
+              s_num_write_requests++;
+              break;
+            }
+          }
+        }
+      } 
+      // AB Operation
+      else if (req.type_id == Type::AB){
+        if(current_mode != Type::AB){
+          if(current_mode == Type::SB){
+            Request r = Request(Opcode::TMOD_A);
+            if(send_all(r, s_num_trans_requests) == false) return false;
+            current_mode = Type::AB;
+          } else if(current_mode == Type::PIM){
+            Request r = Request(Opcode::TMOD_P);
+            if(send_all(r, s_num_trans_requests) == false) return false;
+            current_mode = Type::AB;
+          }
+        }
+
+        if(send_all(req, s_num_write_requests) == false) return false;
+      } 
+      // PIM Operation
+      else if (req.type_id == Type::PIM){
+        if(current_mode != Type::PIM){
+          if(current_mode == Type::SB){
+            Request r = Request(Opcode::TMOD_A);
+            if(send_all(r, s_num_trans_requests) == false) return false;
+            current_mode = Type::AB;
+          }
+          if(current_mode == Type::AB){
+            Request r = Request(Opcode::TMOD_A);
+            if(send_all(r, s_num_trans_requests) == false) return false;
+            current_mode = Type::PIM;
+          }
+        }
+
+        if(send_all(req, s_num_pim_requests) == false) return false;
       }
 
       return is_success;

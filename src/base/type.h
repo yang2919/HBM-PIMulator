@@ -19,6 +19,33 @@ enum LOCATE{
     CRF
 };
 
+struct Type {
+    enum : int {
+      SB = 0,
+      AB,
+      PIM
+    };
+  };
+
+struct Opcode {
+    enum : int{
+            READ = 0,
+            WRITE,
+            ADD,
+            MUL,
+            MAC,
+            MAD,
+            MOV,
+            FILL,
+            NOP,
+            JUMP,
+            EXIT,
+            TMOD_A,
+            TMOD_P,
+    };
+};
+
+
 typedef struct POperand_{ // PIM specific address struct
     LOCATE loc;
     int addr;
