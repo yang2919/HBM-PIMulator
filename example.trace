@@ -1,0 +1,33 @@
+# Physical Address (PA): [1 Rank][6 Channel][2 Bankgroup][2 Bank][14 Row][5 Column][5 Offset]
+# 1 Rank: 0 for PIM, 1 for HBM
+# 6 Channel: a pseudo-channel
+# 2 Bankgroup: a bankgroup in a pseudo-channel
+# 2 Bank: a bank in a bankgroup
+# 14 Row: the MSE bit is 0 for the PIM region
+# 5 Column: a 32-byte transcation data in a 1 KB memory row
+# 5 Offset: not used for address mapping
+
+# SB R [PA] // column_id? check in HBM
+# SB W [PA]
+
+# R/W GPR [GPR_id] 
+# R/W CFR "[CFR_id]" [data]    
+# R/W MEM [channel_id] [bank_id] [row_id]
+
+# AB W
+
+# PIM instruction operand -> (BANK, Row Address / CRF, RF Number / GRF, RF Number)
+
+# PIM ADD [DST] [SRC0] [SRC1]
+# PIM MUL [DST] [SRC0] [SRC1]
+# PIM MAC [DST] [SRC0] [SRC1]
+# PIM MAD [DST] [SRC0] [SRC1]
+
+# PIM MOV [DST] [SRC0]
+# PIM FILL [DST] [SRC0]
+
+# PIM NOP
+# PIM JUMP
+# PIM EXIT
+
+PIM MAC GRF,8 BANK,8 SRF,0

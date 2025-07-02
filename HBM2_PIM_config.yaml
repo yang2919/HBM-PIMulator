@@ -3,7 +3,7 @@ Frontend:
   clock_ratio: 8
   num_expected_insts: 500000
   traces: 
-    - example_inst.trace
+    - example.trace
 
   Translation:
     impl: RandomTranslation

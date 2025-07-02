@@ -16,7 +16,7 @@ using AddrVec_t = std::vector<int>;   // Device address vector as is sent to the
 enum LOCATE{
     BANK,
     GRF,
-    CRF
+    SRF
 };
 
 struct Opcode {

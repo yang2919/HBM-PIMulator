@@ -33,15 +33,6 @@ class HBMPIMTrace : public IFrontEnd, public Implementation {
         EXIT
     };
 
-    enum CTYPE{
-        READ,
-        WRITE,
-        AWRITE,
-        ARITH,
-        DATA,
-        CON
-    };
-
     struct Trace {
       MODE mode;
       OPCODE opcode;
@@ -158,7 +149,7 @@ class HBMPIMTrace : public IFrontEnd, public Implementation {
 
         str_to_Loc["BANK"] = LOCATE::BANK;
         str_to_Loc["GRF"] = LOCATE::GRF;
-        str_to_Loc["CRF"] = LOCATE::CRF;
+        str_to_Loc["SRF"] = LOCATE::SRF;
     }
 };
 

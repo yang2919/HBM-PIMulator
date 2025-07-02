@@ -5,9 +5,8 @@ target_sources(
   bh_memory_system.h
   memory_system.h
 
-  impl/bh_DRAM_system.cpp
-  impl/dummy_memory_system.cpp
-  impl/generic_DRAM_system.cpp
+  impl/HBM_PIM_system.cpp
+
 )
 
 target_link_libraries(
