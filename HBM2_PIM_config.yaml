@@ -1,5 +1,5 @@
 Frontend:
-  impl: SimpleO3
+  impl: HBMPIMTrace
   clock_ratio: 8
   num_expected_insts: 500000
   traces: 
@@ -11,20 +11,18 @@ Frontend:
               
 
 MemorySystem:
-  impl: GenericDRAM
+  impl: HBMPIMSystem
   clock_ratio: 3
 
   DRAM:
-    impl: DDR4
+    impl: HBM2
     org:
-      preset: DDR4_8Gb_x8
-      channel: 1
-      rank: 2
+      preset: HBM2_PIM_6Gb
     timing:
-      preset: DDR4_2400R 
+      preset: HBM2_PIM_6Gb_timing 
 
   Controller:
-    impl: Generic
+    impl: HBMPIMController
     Scheduler:
       impl: FRFCFS
     RefreshManager:

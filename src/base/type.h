@@ -19,14 +19,6 @@ enum LOCATE{
     CRF
 };
 
-struct Type {
-    enum : int {
-      SB = 0,
-      AB,
-      PIM
-    };
-  };
-
 struct Opcode {
     enum : int{
             READ = 0,

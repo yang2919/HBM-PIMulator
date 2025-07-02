@@ -103,7 +103,7 @@ class HBM2 : public IDRAM, public Implementation {
         {"FILL", "DATA"},
         {"MOV", "DATA"},
       }
-    )
+    );
 
    
   /************************************************
@@ -232,7 +232,7 @@ class HBM2 : public IDRAM, public Implementation {
       }
 
       // Sanity check: is the calculated channel density the same as the provided one?
-      size_t _density = size_t(m_organization.count[m_levels["pseudochannel"]]) *
+      size_t _density = size_t(m_organization.count[m_levels["channel"]]) *
                         size_t(m_organization.count[m_levels["bankgroup"]]) *
                         size_t(m_organization.count[m_levels["bank"]]) *
                         size_t(m_organization.count[m_levels["row"]]) *

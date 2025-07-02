@@ -12,7 +12,7 @@ addr(addr), type_id(type), source_id(source_id), callback(callback) {};
 Request::Request(Addr_t addr, int type, int opcode, POperand_t pop):
 addr(addr), type_id(type), operation_id(opcode), poperand(pop) {};
 
-Request::Request(int opcode): operation_id(opcode);
+Request::Request(int opcode): operation_id(opcode) {};
 
 }        // namespace Ramulator
 

@@ -7,7 +7,7 @@
 namespace Ramulator {
 
 class HBMPIMController final : public IDRAMController, public Implementation {
-    RAMULATOR_REGISTER_IMPLEMENTATION(IDRAMController, HBMPIMController, "HBMPIM", "HBM-PIM controller.");
+    RAMULATOR_REGISTER_IMPLEMENTATION(IDRAMController, HBMPIMController, "HBMPIMController", "HBM-PIM controller.");
 
 private:
     std::deque<Request> pending_reads;   // A queue for read requests that are about to finish (callback after RL)
@@ -23,6 +23,7 @@ private:
 
     float m_wr_low_watermark;
     float m_wr_high_watermark;
+    uint m_clock_ratio;
     bool m_is_write_mode = false;
 
     std::vector<IControllerPlugin *> m_plugins;
@@ -31,12 +32,14 @@ private:
     size_t s_num_row_misses = 0;
     size_t s_num_row_conflicts = 0;
 
-    std::map<Type, int> s_num_RW_cycles;
+    std::map<Opcode, int> s_num_RW_cycles;
     std::map<Opcode, int> s_num_PIM_cycles;
     std::map<int, int> s_num_commands;
     int s_num_idle_cycles = 0;
     int s_num_active_cycles = 0;
     int s_num_precharged_cycles = 0;
+
+    size_t s_read_latency = 0;
 
     bool is_reg_RW_mode = false;
 
@@ -62,7 +65,7 @@ public:
         m_row_addr_idx = m_dram->m_levels("row");
         m_priority_buffer.max_size = 512 * 3 + 32;
         m_logger = Logging::create_logger("HBMPIMController[" + std::to_string(m_channel_id) + "]");
-
+        /*
         for (const auto type : {Type::Read, Type::Write}) {
             s_num_RW_cycles[type] = 0;
             register_stat(s_num_RW_cycles[type])
@@ -95,7 +98,7 @@ public:
 
         register_stat(s_num_precharged_cycles)
             .name(fmt::format("CH{}_precharged_cycles", m_channel_id))
-            .desc(fmt::format("total number of precharged cycles"));
+            .desc(fmt::format("total number of precharged cycles"));*/
     };
 
     bool compare_addr_vec(Request req1, Request req2, int min_compared_level) {
@@ -111,14 +114,14 @@ public:
     }
 
     bool send(Request &req) override {
-        if (req.type_id == Type::PIM) {
+        if (req.type_id == Request::Type::PIM) {
             if ((m_write_buffer.size() != 0) || (m_read_buffer.size() != 0))
                 return false;
-            req.final_command = m_dram->m_pim_requests_translation((int)req.opcode);
+            req.final_command = m_dram->m_pim_requests_translation((int)req.operation_id);
         } else {
             if (m_pim_buffer.size() != 0)
                 return false;
-            req.final_command = m_dram->m_request_translations((int)req.type);
+            req.final_command = m_dram->m_request_translations((int)req.type_id);
         }
 
         // Forward existing write requests to incoming read requests
@@ -141,7 +144,7 @@ public:
             is_success = m_read_buffer.enqueue(req);
         } else if (req.operation_id == Opcode::WRITE) {
             is_success = m_write_buffer.enqueue(req);
-        } else if (req.type == Type::PIM) {
+        } else if (req.type_id == Request::Type::PIM) {
             is_success = m_pim_buffer.enqueue(req);
         } else {
             throw std::runtime_error("Invalid request type!");
@@ -156,7 +159,7 @@ public:
     };
 
     bool priority_send(Request &req) override {
-        if (req.type == Type::PIM)
+        if (req.type_id == Request::Type::PIM)
             req.final_command = m_dram->m_pim_requests_translation((int)req.operation_id);
         else
             req.final_command = m_dram->m_request_translations((int)req.operation_id);
@@ -172,109 +175,143 @@ public:
         //     m_logger->info("[CLK {}]", m_clk);
 
         // 1. Serve completed reads
-        serve_completed_reqs();
+      serve_completed_reads();
 
-        m_refresh->tick();
+      m_refresh->tick();
 
-        // 2. Try to find a request to serve.
-        ReqBuffer::iterator req_it;
-        ReqBuffer *buffer = nullptr;
-        bool request_found = schedule_request(req_it, buffer);
+      // 2. Try to find a request to serve.
+      ReqBuffer::iterator req_it;
+      ReqBuffer* buffer = nullptr;
+      bool request_found = schedule_request(req_it, buffer);
 
-        // // 3. Update all plugins
-        // for (auto plugin : m_plugins) {
-        //     plugin->update(request_found, req_it);
-        // }
+      // 2.1 Take row policy action
+      m_rowpolicy->update(request_found, req_it);
 
-        // 4. Finally, issue the commands to serve the request
-        if (request_found) {
-            // If we find a real request to serve
-            // m_logger->info("[CLK {}] Issuing {} for {}", m_clk, std::string(m_dram->m_commands(req_it->command)).c_str(), req_it->str());
-            if (req_it->issue == -1)
-                req_it->issue = m_clk - 1;
-            m_dram->issue_command(req_it->command, req_it->addr_vec);
-            s_num_commands[req_it->command] += 1;
+      // 3. Update all plugins
+      for (auto plugin : m_plugins) {
+        plugin->update(request_found, req_it);
+      }
 
-            // If we are issuing the last command, set depart clock cycle and move the request to the pending_reads queue
-            if (req_it->command == req_it->final_command) {
-                int latency = m_dram->m_command_latencies(req_it->command);
-                assert(latency > 0);
-                req_it->depart = m_clk + latency;
-                if (req_it->is_reader()) {
-                    pending_reads.push_back(*req_it);
-                } else {
-                    pending_writes.push_back(*req_it);
-                }
-                if (req_it->type == Type::AIM) {
-                    s_num_AiM_cycles[req_it->opcode] += (m_clk - req_it->issue);
-                } else {
-                    s_num_RW_cycles[req_it->type] += (m_clk - req_it->issue);
-                }
-                // else if (req_it->type == Type::Write) {
-                //     // TODO: Add code to update statistics
-                // }
-                buffer->remove(req_it);
-            } else if (req_it->type != Type::AIM) {
-                if (m_dram->m_command_meta(req_it->command).is_opening) {
-                    m_active_buffer.enqueue(*req_it);
-                    buffer->remove(req_it);
-                }
-            }
-            
-        } else if (m_read_buffer.size() == 0 && m_write_buffer.size() == 0 && m_aim_buffer.size() == 0 && pending_reads.size() == 0 && pending_writes.size() == 0) {
-            // if (m_channel_id == 0)
-            // m_logger->info("[CLK {}] CH0 IDLE", m_clk);
-            s_num_idle_cycles += 1;
+      // 4. Finally, issue the commands to serve the request
+      if (request_found) {
+        // If we find a real request to serve
+        if (req_it->is_stat_updated == false) {
+          update_request_stats(req_it);
         }
+        m_dram->issue_command(req_it->command, req_it->addr_vec);
 
-        if (m_dram->m_open_rows[m_channel_id] == 0) {
-            s_num_precharged_cycles += 1;
+        // If we are issuing the last command, set depart clock cycle and move the request to the pending queue
+        if (req_it->command == req_it->final_command) {
+          if (req_it->type_id == Request::Type::Read) {
+            req_it->depart = m_clk + m_dram->m_read_latency;
+            pending_reads.push_back(*req_it);
+          } else if (req_it->type_id == Request::Type::Write) {
+            // TODO: Add code to update statistics
+          }
+          buffer->remove(req_it);
         } else {
-            s_num_active_cycles += 1;
+          if (m_dram->m_command_meta(req_it->command).is_opening) {
+            if (m_active_buffer.enqueue(*req_it)) {
+              buffer->remove(req_it);
+            }
+          }
         }
+
+      }
+
     };
 
-private:
+
+  private:
+    /**
+     * @brief    Helper function to check if a request is hitting an open row
+     * @details
+     * 
+     */
+    bool is_row_hit(ReqBuffer::iterator& req)
+    {
+        return m_dram->check_rowbuffer_hit(req->final_command, req->addr_vec);
+    }
+    /**
+     * @brief    Helper function to check if a request is opening a row
+     * @details
+     * 
+    */
+    bool is_row_open(ReqBuffer::iterator& req)
+    {
+        return m_dram->check_node_open(req->final_command, req->addr_vec);
+    }
+
+    /**
+     * @brief    
+     * @details
+     * 
+     */
+    void update_request_stats(ReqBuffer::iterator& req)
+    {
+      req->is_stat_updated = true;
+/*
+      if (req->type_id == Request::Type::Read) 
+      {
+        if (is_row_hit(req)) {
+          s_read_row_hits++;
+          s_row_hits++;
+          if (req->source_id != -1)
+            s_read_row_hits_per_core[req->source_id]++;
+        } else if (is_row_open(req)) {
+          s_read_row_conflicts++;
+          s_row_conflicts++;
+          if (req->source_id != -1)
+            s_read_row_conflicts_per_core[req->source_id]++;
+        } else {
+          s_read_row_misses++;
+          s_row_misses++;
+          if (req->source_id != -1)
+            s_read_row_misses_per_core[req->source_id]++;
+        } 
+      } 
+      else if (req->type_id == Request::Type::Write) 
+      {
+        if (is_row_hit(req)) {
+          s_write_row_hits++;
+          s_row_hits++;
+        } else if (is_row_open(req)) {
+          s_write_row_conflicts++;
+          s_row_conflicts++;
+        } else {
+          s_write_row_misses++;
+          s_row_misses++;
+        }
+      }*/
+    }
+
     /**
      * @brief    Helper function to serve the completed read requests
      * @details
      * This function is called at the beginning of the tick() function.
-     * It checks the pending_reads queue to see if the top request has received data from DRAM.
-     * If so, it finishes this request by calling its callback and poping it from the pending_reads queue.
+     * It checks the pending queue to see if the top request has received data from DRAM.
+     * If so, it finishes this request by calling its callback and poping it from the pending queue.
      */
-    void serve_completed_reqs() {
-        if (pending_reads.size()) {
-            // Check the first pending_reads request
-            auto &req = pending_reads[0];
-            if (req.depart <= m_clk) {
-                // Request received data from dram
+    void serve_completed_reads() {
+      if (pending_reads.size()) {
+        // Check the first pending request
+        auto& req = pending_reads[0];
+        if (req.depart <= m_clk) {
+          // Request received data from dram
+          if (req.depart - req.arrive > 1) {
+            // Check if this requests accesses the DRAM or is being forwarded.
+            // TODO add the stats back
+            s_read_latency += req.depart - req.arrive;
+          }
 
-                if (((req.opcode != Opcode::ISR_EOC) && (req.opcode != Opcode::ISR_SYNC)) ||
-                    (pending_writes.size() == 0)) {
-
-                    if (req.callback) {
-                        // If the request comes from outside (e.g., processor), call its callback
-                        // m_logger->info("[CLK {}] Calling back {}!", m_clk, req.str());
-                        req.callback(req);
-                    }
-                    // else {
-                    //     m_logger->info("[CLK {}] Warning: {} doesn't have callback set but it is in the pending_reads queue!", m_clk, req.str());
-                    // }
-                    // Finally, r emove this request from the pending_reads queue
-                    pending_reads.pop_front();
-                }
-            }
+          if (req.callback) {
+            // If the request comes from outside (e.g., processor), call its callback
+            req.callback(req);
+          }
+          // Finally, remove this request from the pending queue
+          pending_reads.pop_front();
         }
-        auto write_req_it = pending_writes.begin();
-        while (write_req_it != pending_writes.end()) {
-            if (write_req_it->depart <= m_clk) {
-                // Remove this write request
-                // m_logger->info("[CLK {}] Finished {}!", m_clk, write_req_it->str());
-                write_req_it = pending_writes.erase(write_req_it);
-            } else {
-                ++write_req_it;
-            }
-        }
+      };
     };
 
     /**
@@ -323,16 +360,12 @@ private:
 
             // 2.2.1    If no request to be scheduled in the priority buffer, check the read and write OR AiM buffers.
             if (!request_found) {
-                if (m_aim_buffer.size() != 0) {
-                    req_it = m_aim_buffer.begin();
-                    if ((req_it->opcode == Opcode::ISR_EOC) || (req_it->opcode == Opcode::ISR_SYNC)) {
-                        req_buffer = &m_aim_buffer;
-                        return true;
-                    } else {
-                        req_it->command = m_dram->get_preq_command(req_it->final_command, req_it->addr_vec);
-                        request_found = m_dram->check_ready(req_it->command, req_it->addr_vec);
-                        req_buffer = &m_aim_buffer;
-                    }
+                if (m_pim_buffer.size() != 0) {
+                    req_it = m_pim_buffer.begin();
+                    req_it->command = m_dram->get_preq_command(req_it->final_command, req_it->addr_vec);
+                    request_found = m_dram->check_ready(req_it->command, req_it->addr_vec);
+                    req_buffer = &m_pim_buffer;
+                    
                 } else {
                     // Query the write policy to decide which buffer to serve
                     set_write_mode();

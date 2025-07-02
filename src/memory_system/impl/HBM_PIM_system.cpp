@@ -15,7 +15,15 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
     IAddrMapper*  m_addr_mapper;
     std::vector<IDRAMController*> m_controllers;
 
-    int current_mode = Type::SB;
+    struct Mode{
+      enum : int{
+        SB,
+        AB,
+        PIM
+      };
+    };
+
+    int current_mode = Mode::SB;
 
   public:
     int s_num_read_requests = 0;
@@ -44,7 +52,8 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
       register_stat(m_clk).name("memory_system_cycles");
       register_stat(s_num_read_requests).name("total_num_read_requests");
       register_stat(s_num_write_requests).name("total_num_write_requests");
-      register_stat(s_num_other_requests).name("total_num_other_requests");
+      register_stat(s_num_pim_requests).name("total_num_pim_requests");
+      register_stat(s_num_trans_requests).name("total_num_trans_requests");
     };
 
     void setup(IFrontEnd* frontend, IMemorySystem* memory_system) override { }
@@ -61,17 +70,17 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
 
     bool send(Request req) override {
       // SB operation
-      if (req.type_id == Type::SB){ // Type Transition
-        if (current_mode != Type::SB){
-          if (current_mode == Type::PIM){
+      if (req.type_id == Request::Type::Read || req.type_id == Request::Type::Write){ // Type Transition
+        if (current_mode != Mode::SB){
+          if (current_mode == Mode::PIM){
             Request r = Request(Opcode::TMOD_P);
             if(send_all(r, s_num_trans_requests) == false) return false;
-            current_mode = Type::AB;
+            current_mode = Mode::AB;
           }
-          if (current_mode == Type::AB){
+          if (current_mode == Mode::AB){
             Request r = Request(Opcode::TMOD_A);
             if(send_all(r, s_num_trans_requests) == false) return false;
-            current_mode = Type::SB;
+            current_mode = Mode::SB;
           }
         }
         
@@ -93,40 +102,40 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
         }
       } 
       // AB Operation
-      else if (req.type_id == Type::AB){
-        if(current_mode != Type::AB){
-          if(current_mode == Type::SB){
+      else if (req.type_id == Request::Type::AB){
+        if(current_mode != Mode::AB){
+          if(current_mode == Mode::SB){
             Request r = Request(Opcode::TMOD_A);
             if(send_all(r, s_num_trans_requests) == false) return false;
-            current_mode = Type::AB;
-          } else if(current_mode == Type::PIM){
+            current_mode = Mode::AB;
+          } else if(current_mode == Mode::PIM){
             Request r = Request(Opcode::TMOD_P);
             if(send_all(r, s_num_trans_requests) == false) return false;
-            current_mode = Type::AB;
+            current_mode = Mode::AB;
           }
         }
 
         if(send_all(req, s_num_write_requests) == false) return false;
       } 
       // PIM Operation
-      else if (req.type_id == Type::PIM){
-        if(current_mode != Type::PIM){
-          if(current_mode == Type::SB){
+      else if (req.type_id == Request::Type::PIM){
+        if(current_mode != Mode::PIM){
+          if(current_mode == Mode::SB){
             Request r = Request(Opcode::TMOD_A);
             if(send_all(r, s_num_trans_requests) == false) return false;
-            current_mode = Type::AB;
+            current_mode = Mode::AB;
           }
-          if(current_mode == Type::AB){
+          if(current_mode == Mode::AB){
             Request r = Request(Opcode::TMOD_A);
             if(send_all(r, s_num_trans_requests) == false) return false;
-            current_mode = Type::PIM;
+            current_mode = Mode::PIM;
           }
         }
 
         if(send_all(req, s_num_pim_requests) == false) return false;
       }
 
-      return is_success;
+      return true;
     };
     
     void tick() override {
