@@ -7,9 +7,6 @@
 # 5 Column: a 32-byte transcation data in a 1 KB memory row
 # 5 Offset: not used for address mapping
 
-# SB R [PA] // column_id? check in HBM
-# SB W [PA]
-
 # R/W GPR [GPR_id] 
 # R/W CFR "[CFR_id]" [data]    
 # R/W MEM [channel_id] [bank_id] [row_id]
@@ -31,3 +28,4 @@
 # PIM EXIT
 
 PIM MAC GRF,8 BANK,8 SRF,0
+# SB R 8

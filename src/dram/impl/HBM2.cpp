@@ -12,7 +12,7 @@ class HBM2 : public IDRAM, public Implementation {
       {"HBM2_2Gb",   {2<<10,  128,  {1, 2,  4,  2, 1<<14, 1<<6}}},
       {"HBM2_4Gb",   {4<<10,  128,  {1, 2,  4,  4, 1<<14, 1<<6}}},
       {"HBM2_8Gb",   {6<<10,  128,  {1, 2,  4,  4, 1<<15, 1<<6}}},
-      {"HBM2_PIM_6Gb", {8<<10,  128,  {2, 1<<7,  4,  4, 1<<15, 1<<6}}},
+      {"HBM2_PIM_6Gb", {8<<10,  128,  {1, 1<<5,  4,  4, 1<<13, 1<<4}}},
     };
 
     inline static const std::map<std::string, std::vector<int>> timing_presets = {
@@ -44,7 +44,7 @@ class HBM2 : public IDRAM, public Implementation {
       "RD",  "WR",  "RDA",  "WRA",
       "REFab", "REFsb",
       "ALU", "DATA", "CON",
-      "TMOD", "RWR"
+      "TMOD", "RWR",
     };
 
     inline static const ImplLUT m_command_scopes = LUT (
@@ -53,7 +53,7 @@ class HBM2 : public IDRAM, public Implementation {
         {"PRE",   "bank"},    {"PREA",   "channel"},
         {"RD",    "column"},  {"WR",     "column"}, {"RDA",   "column"}, {"WRA",   "column"},
         {"REFab", "channel"}, {"REFsb",  "bank"},
-        {"ALU", "rank"}, {"DATA", "rank"}, {"CON", "rank"},
+        {"ALU", "channel"}, {"DATA", "channel"}, {"CON", "channel"},
         {"TMOD", "rank"}, {"RWR", "rank"}
       }
     );
@@ -88,7 +88,7 @@ class HBM2 : public IDRAM, public Implementation {
     );
 
     inline static constexpr ImplDef m_pim_requests = {
-      "MAC", "MUL", "MAD", "ADD", "JUMP", "EXIT", "NOP", "FILL", "MOV"
+      "MAC", "MUL", "MAD", "ADD", "JUMP", "EXIT", "NOP", "FILL", "MOV", "TMOD_A", "TMOD_P"
     };
 
     inline static const ImplLUT m_pim_requests_translations = LUT(
@@ -102,6 +102,8 @@ class HBM2 : public IDRAM, public Implementation {
         {"NOP", "CON"},
         {"FILL", "DATA"},
         {"MOV", "DATA"},
+        {"TMOD_A", "TMOD"},
+        {"TMOD_P", "TMOD"},
       }
     );
 
@@ -263,7 +265,7 @@ class HBM2 : public IDRAM, public Implementation {
           throw ConfigurationError("Unrecognized timing preset \"{}\" in {}!", *preset_name, get_name());
         }
       }
-
+      
       // Check for rate (in MT/s), and if provided, calculate and set tCK (in picosecond)
       if (auto dq = param_group("timing").param<int>("rate").optional()) {
         if (preset_provided) {
@@ -330,8 +332,9 @@ class HBM2 : public IDRAM, public Implementation {
           /*** Channel ***/ 
           /// 2-cycle ACT command (for row commands)
           {.level = "channel", .preceding = {"ACT"}, .following = {"ACT", "PRE", "PREA", "REFab", "REFsb"}, .latency = 2},
-
+          
           /*** Pseudo Channel (Table 3 — Array Access Timings Counted Individually Per Pseudo Channel, JESD-235C) ***/ 
+          /*
           // RAS <-> RAS
           {.level = "pseudochannel", .preceding = {"ACT"}, .following = {"ACT"}, .latency = V("nRRDS")},
           /// 4-activation window restriction
@@ -370,7 +373,7 @@ class HBM2 : public IDRAM, public Implementation {
           {.level = "pseudochannel", .preceding = {"PRE", "PREA"}, .following = {"REFab"}, .latency = V("nRP")},          
           {.level = "pseudochannel", .preceding = {"RDA"}, .following = {"REFab"}, .latency = V("nRP") + V("nRTPS")},          
           {.level = "pseudochannel", .preceding = {"WRA"}, .following = {"REFab"}, .latency = V("nCWL") + V("nBL") + V("nWR") + V("nRP")},          
-          {.level = "pseudochannel", .preceding = {"REFab"}, .following = {"ACT", "REFsb"}, .latency = V("nRFC")},          
+          {.level = "pseudochannel", .preceding = {"REFab"}, .following = {"ACT", "REFsb"}, .latency = V("nRFC")},          */
 
           /*** Same Bank Group ***/ 
           /// CAS <-> CAS

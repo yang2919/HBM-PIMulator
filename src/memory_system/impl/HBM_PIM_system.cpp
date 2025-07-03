@@ -89,12 +89,12 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
         bool is_success = m_controllers[channel_id]->send(req);
 
         if (is_success) {
-          switch (req.operation_id) {
-            case Opcode::READ: {
+          switch (req.type_id) {
+            case Request::Type::Read: {
               s_num_read_requests++;
               break;
             }
-            case Opcode::WRITE: {
+            case Request::Type::Write: {
               s_num_write_requests++;
               break;
             }

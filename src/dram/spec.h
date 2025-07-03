@@ -271,6 +271,7 @@ class ImplLUT<N, M, int> : public std::array<int, N> {
         std::array<int, N>::operator[](key_id) = value_id;
       }
     }
+
     const int& operator[](std::string str) const {
       int key_id = (*m_key_def)[str];
       return std::vector<int>::operator[](key_id);

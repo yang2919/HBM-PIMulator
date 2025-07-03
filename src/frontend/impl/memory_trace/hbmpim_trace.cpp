@@ -13,29 +13,9 @@ class HBMPIMTrace : public IFrontEnd, public Implementation {
   RAMULATOR_REGISTER_IMPLEMENTATION(IFrontEnd, HBMPIMTrace, "HBMPIMTrace", "HBM-PIM access address trace.")
 
   private:
-    enum MODE{
-        SB,
-        AB,
-        PIM
-    };
-
-    enum OPCODE{
-        READ,
-        WRITE,
-        ADD,
-        MUL,
-        MAC,
-        MAD,
-        MOV,
-        FILL,
-        NOP,
-        JUMP,
-        EXIT
-    };
-
     struct Trace {
-      MODE mode;
-      OPCODE opcode;
+      int mode;
+      int opcode;
       Addr_t addr;
       POperand_t poperand;
     };
@@ -48,8 +28,8 @@ class HBMPIMTrace : public IFrontEnd, public Implementation {
 
     Logger_t m_logger;
 
-    std::map<std::string, OPCODE> str_to_ISR;
-    std::map<std::string, MODE> str_to_mode;
+    std::map<std::string, int> str_to_ISR;
+    std::map<std::string, int> str_to_mode;
     std::map<std::string, LOCATE> str_to_Loc; 
 
   public:
@@ -91,30 +71,35 @@ class HBMPIMTrace : public IFrontEnd, public Implementation {
 
       std::string line;
       while (std::getline(trace_file, line)) {
+        if (line[0] == '#' || line.empty()){
+          continue; // comment or empty line
+        }
         std::vector<std::string> tokens;
         tokenize(tokens, line, " ");
 
-        MODE mode;
-        OPCODE opcode;
+        int mode;
+        int opcode;
         Addr_t addr;
         POperand_t poperand;
 
         mode = str_to_mode[tokens[0]];
-        opcode = str_to_ISR[tokens[1]];
-
-        if (mode == MODE::SB){
-            addr = std::stoll(tokens[2]);
+        if (mode == Request::Type::Read || mode == Request::Type::Write){
+            addr = std::stoll(tokens[1]);
         }
-        else if(mode == MODE::PIM){
-            for(int i = 2 ; i < tokens.size() ; i++)
-            {
-                std::vector<std::string> token;
-                tokenize(token, tokens[i], ",");
+        else{
+          opcode = str_to_ISR[tokens[1]];
 
-                LOCATE loc = str_to_Loc[token[0]];
-                int ad = std::stoi(token[1]);
-                poperand.push_back({loc, ad});
-            }
+          if(mode == Request::Type::PIM){
+              for(int i = 2 ; i < tokens.size() ; i++)
+              {
+                  std::vector<std::string> token;
+                  tokenize(token, tokens[i], ",");
+
+                  LOCATE loc = str_to_Loc[token[0]];
+                  int ad = std::stoi(token[1]);
+                  poperand.push_back({loc, ad});
+              }
+          }
         }
 
         m_trace.push_back({mode, opcode, addr, poperand});
@@ -131,21 +116,20 @@ class HBMPIMTrace : public IFrontEnd, public Implementation {
 
     void str_to_DEF()
     {
-        str_to_ISR["R"] = OPCODE::READ;
-        str_to_ISR["W"] = OPCODE::WRITE;
-        str_to_ISR["ADD"] = OPCODE::ADD;
-        str_to_ISR["MUL"] = OPCODE::MUL;
-        str_to_ISR["MAC"] = OPCODE::MAC;
-        str_to_ISR["MAD"] = OPCODE::MAD;
-        str_to_ISR["MOV"] = OPCODE::MOV;
-        str_to_ISR["FILL"] = OPCODE::FILL;
-        str_to_ISR["NOP"] = OPCODE::NOP;
-        str_to_ISR["JUMP"] = OPCODE::JUMP;
-        str_to_ISR["EXIT"] = OPCODE::EXIT;
+        str_to_ISR["ADD"] = Opcode::ADD;
+        str_to_ISR["MUL"] = Opcode::MUL;
+        str_to_ISR["MAC"] = Opcode::MAC;
+        str_to_ISR["MAD"] = Opcode::MAD;
+        str_to_ISR["MOV"] = Opcode::MOV;
+        str_to_ISR["FILL"] = Opcode::FILL;
+        str_to_ISR["NOP"] = Opcode::NOP;
+        str_to_ISR["JUMP"] = Opcode::JUMP;
+        str_to_ISR["EXIT"] = Opcode::EXIT;
     
-        str_to_mode["SB"] = MODE::SB;
-        str_to_mode["AB"] = MODE::AB;
-        str_to_mode["PIM"] = MODE::PIM;
+        str_to_mode["R"] = Request::Type::Read;
+        str_to_mode["W"] = Request::Type::Write;
+        str_to_mode["AB"] = Request::Type::AB;
+        str_to_mode["PIM"] = Request::Type::PIM;
 
         str_to_Loc["BANK"] = LOCATE::BANK;
         str_to_Loc["GRF"] = LOCATE::GRF;

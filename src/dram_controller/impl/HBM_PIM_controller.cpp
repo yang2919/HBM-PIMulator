@@ -117,7 +117,7 @@ public:
         if (req.type_id == Request::Type::PIM) {
             if ((m_write_buffer.size() != 0) || (m_read_buffer.size() != 0))
                 return false;
-            req.final_command = m_dram->m_pim_requests_translation((int)req.operation_id);
+            req.final_command = m_dram->m_pim_requests_translations(0); //(int)req.operation_id
         } else {
             if (m_pim_buffer.size() != 0)
                 return false;
@@ -125,7 +125,7 @@ public:
         }
 
         // Forward existing write requests to incoming read requests
-        if (req.operation_id == Opcode::READ) {
+        if (req.type_id == Request::Type::Read) {
             auto compare_addr = [req](const Request &wreq) {
                 return wreq.addr == req.addr;
             };
@@ -140,9 +140,9 @@ public:
         // Else, enqueue them to corresponding buffer based on request type id
         bool is_success = false;
         req.arrive = m_clk;
-        if (req.operation_id == Opcode::READ) {
+        if (req.type_id == Request::Type::Read) {
             is_success = m_read_buffer.enqueue(req);
-        } else if (req.operation_id == Opcode::WRITE) {
+        } else if (req.operation_id == Request::Type::Write) {
             is_success = m_write_buffer.enqueue(req);
         } else if (req.type_id == Request::Type::PIM) {
             is_success = m_pim_buffer.enqueue(req);
@@ -160,7 +160,7 @@ public:
 
     bool priority_send(Request &req) override {
         if (req.type_id == Request::Type::PIM)
-            req.final_command = m_dram->m_pim_requests_translation((int)req.operation_id);
+            req.final_command = m_dram->m_pim_requests_translations((int)req.operation_id);
         else
             req.final_command = m_dram->m_request_translations((int)req.operation_id);
 

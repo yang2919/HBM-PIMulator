@@ -1,9 +1,7 @@
 Frontend:
   impl: HBMPIMTrace
   clock_ratio: 8
-  num_expected_insts: 500000
-  traces: 
-    - example.trace
+  path: ../example.trace
 
   Translation:
     impl: RandomTranslation
@@ -23,6 +21,7 @@ MemorySystem:
 
   Controller:
     impl: HBMPIMController
+    clock_ratio: 3
     Scheduler:
       impl: FRFCFS
     RefreshManager:
