@@ -12,7 +12,7 @@ class HBM2 : public IDRAM, public Implementation {
       {"HBM2_2Gb",   {2<<10,  128,  {1, 2,  4,  2, 1<<14, 1<<6}}},
       {"HBM2_4Gb",   {4<<10,  128,  {1, 2,  4,  4, 1<<14, 1<<6}}},
       {"HBM2_8Gb",   {6<<10,  128,  {1, 2,  4,  4, 1<<15, 1<<6}}},
-      {"HBM2_PIM_6Gb", {8<<10,  128,  {1, 1<<5,  4,  4, 1<<13, 1<<4}}},
+      {"HBM2_PIM_6Gb", {8<<10,  128,  {1, 1,  4,  4, 1<<18, 1<<4}}},
     };
 
     inline static const std::map<std::string, std::vector<int>> timing_presets = {
@@ -53,8 +53,8 @@ class HBM2 : public IDRAM, public Implementation {
         {"PRE",   "bank"},    {"PREA",   "channel"},
         {"RD",    "column"},  {"WR",     "column"}, {"RDA",   "column"}, {"WRA",   "column"},
         {"REFab", "channel"}, {"REFsb",  "bank"},
-        {"ALU", "channel"}, {"DATA", "channel"}, {"CON", "channel"},
-        {"TMOD", "rank"}, {"RWR", "rank"}
+        {"ALU", "bank"}, {"DATA", "bank"}, {"CON", "bank"},
+        {"TMOD", "channel"}, {"RWR", "rank"}
       }
     );
 
@@ -163,7 +163,7 @@ class HBM2 : public IDRAM, public Implementation {
 
     void init() override {
       RAMULATOR_DECLARE_SPECS();
-      set_organization();
+      set_organization(); 
       set_timing_vals();
 
       set_actions();
@@ -182,6 +182,7 @@ class HBM2 : public IDRAM, public Implementation {
 
     int get_preq_command(int command, const AddrVec_t& addr_vec) override {
       int channel_id = addr_vec[m_levels["channel"]];
+      channel_id = 0;
       return m_channels[channel_id]->get_preq_command(command, addr_vec, m_clk);
     };
 
@@ -254,6 +255,7 @@ class HBM2 : public IDRAM, public Implementation {
 
     void set_timing_vals() {
       m_timing_vals.resize(m_timings.size(), -1);
+      m_command_latencies.resize(m_commands.size(), -1);
 
       // Load timing preset if provided
       bool preset_provided = false;
@@ -298,7 +300,7 @@ class HBM2 : public IDRAM, public Implementation {
           default:    return -1;
         }
       }(m_organization.density);
-
+      
       m_timing_vals("nRFC")  = JEDEC_rounding(tRFC_TABLE[0][density_id], tCK_ps);
       m_timing_vals("nREFISB")  = JEDEC_rounding(tRFC_TABLE[0][density_id], tCK_ps);
 
@@ -322,16 +324,22 @@ class HBM2 : public IDRAM, public Implementation {
           throw ConfigurationError("In \"{}\", timing {} is not specified!", get_name(), m_timings(i));
         }
       }      
-
+      
       // Set read latency
       m_read_latency = m_timing_vals("nCL") + m_timing_vals("nBL");
-
+      m_command_latencies("WR") = m_timing_vals("nCWL") + m_timing_vals("nBL");
+      m_command_latencies("RD") = m_timing_vals("nCL") + m_timing_vals("nBL");
+      m_command_latencies("ALU") = 2;
+      m_command_latencies("TMOD") = 1;
+      
       // Populate the timing constraints
       #define V(timing) (m_timing_vals(timing))
       populate_timingcons(this, {
           /*** Channel ***/ 
           /// 2-cycle ACT command (for row commands)
-          {.level = "channel", .preceding = {"ACT"}, .following = {"ACT", "PRE", "PREA", "REFab", "REFsb"}, .latency = 2},
+          {.level = "channel", .preceding = {"ACT"}, .following = {"ACT", "PRE", "PREA", "REFab", "REFsb", "ALU"}, .latency = 2},
+          {.level = "channel", .preceding = {"TMOD"}, .following = {"ACT", "PREA", "PRE", "RD", "WR", "RDA", "WRA", "REFab", "ALU", "TMOD"}, .latency = V("nTMOD")},
+
           
           /*** Pseudo Channel (Table 3 — Array Access Timings Counted Individually Per Pseudo Channel, JESD-235C) ***/ 
           /*
@@ -397,7 +405,11 @@ class HBM2 : public IDRAM, public Implementation {
           {.level = "bank", .preceding = {"RD"},  .following = {"PRE"}, .latency = V("nRTPL")},  
           {.level = "bank", .preceding = {"WR"},  .following = {"PRE"}, .latency = V("nCWL") + V("nBL") + V("nWR")},  
           {.level = "bank", .preceding = {"RDA"}, .following = {"ACT", "REFsb"}, .latency = V("nRTPL") + V("nRP")},  
-          {.level = "bank", .preceding = {"WRA"}, .following = {"ACT", "REFsb"}, .latency = V("nCWL") + V("nBL") + V("nWR") + V("nRP")},  
+          {.level = "bank", .preceding = {"WRA"}, .following = {"ACT", "REFsb"}, .latency = V("nCWL") + V("nBL") + V("nWR") + V("nRP")}, 
+
+          {.level = "bank", .preceding = {"ACT"}, .following = {"ALU"}, .latency = V("nALU")},
+          {.level = "bank", .preceding = {"ACT"}, .following = {"DATA"}, .latency = V("nDATA")},
+          {.level = "bank", .preceding = {"ACT"}, .following = {"CON"}, .latency = V("nCON")},
         }
       );
       #undef V
@@ -427,6 +439,8 @@ class HBM2 : public IDRAM, public Implementation {
       m_preqs[m_levels["bank"]][m_commands["REFsb"]] = Lambdas::Preq::Bank::RequireBankClosed<HBM2>;
       m_preqs[m_levels["bank"]][m_commands["RD"]] = Lambdas::Preq::Bank::RequireRowOpen<HBM2>;
       m_preqs[m_levels["bank"]][m_commands["WR"]] = Lambdas::Preq::Bank::RequireRowOpen<HBM2>;
+
+      m_preqs[m_levels["bank"]][m_commands["ALU"]] = Lambdas::Preq::Bank::RequireBankClosed<HBM2>;
     };
 
     void set_rowhits() {

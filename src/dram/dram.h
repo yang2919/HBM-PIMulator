@@ -56,6 +56,7 @@ class IDRAM : public Clocked<IDRAM> {
   public:
     SpecDef m_timings;                      // The names of the timing constraints
     SpecLUT<int> m_timing_vals{m_timings};  // The LUT of the values for each timing constraints
+    SpecLUT<int> m_command_latencies{m_commands};
 
     TimingCons m_timing_cons;           // The actual timing constraints used by Ramulator's DRAM model
 

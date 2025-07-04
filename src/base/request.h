@@ -35,8 +35,9 @@ struct Request {
   int final_command = -1;    // The final command that is needed to finish the request
   bool is_stat_updated = false; // Memory controller stats
 
-  Clk_t arrive = -1;   // Clock cycle when the request arrive at the memory controller
-  Clk_t depart = -1;   // Clock cycle when the request depart the memory controller
+  Clk_t arrive = -1; // Clock cycle when the request arrive at the memory controller
+  Clk_t issue = -1;  // Clock cycle when the request issued at the memory controller
+  Clk_t depart = -1; // Clock cycle when the request depart the memory controller
 
   std::array<int, 4> scratchpad = { 0 };    // A scratchpad for the request
 
@@ -55,7 +56,7 @@ struct Request {
 
 struct ReqBuffer {
   std::list<Request> buffer;
-  size_t max_size = 32;
+  size_t max_size = 128;
 
 
   using iterator = std::list<Request>::iterator;

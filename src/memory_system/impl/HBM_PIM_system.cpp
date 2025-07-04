@@ -25,6 +25,17 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
 
     int current_mode = Mode::SB;
 
+    void apply_addr_mapp(Request &req, int channel_id) {
+        req.addr_vec.resize(5, -1);
+
+        req.addr_vec[0] = channel_id;
+        req.addr_vec[1] = 0;
+        req.addr_vec[2] = 0;
+        
+        req.addr_vec[3] = 0;
+        req.addr_vec[4] = 0;
+    }
+
   public:
     int s_num_read_requests = 0;
     int s_num_write_requests = 0;
@@ -58,11 +69,15 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
 
     void setup(IFrontEnd* frontend, IMemorySystem* memory_system) override { }
 
-    bool send_all(Request req, int& request_cnt){
-      for (int channel_id = 0; channel_id < m_controllers.size(); channel_id++) {
-        // m_logger->info("[CLK {}] 2- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
-        if (m_controllers[channel_id]->send(req) == false) {
-          return false;
+    bool send_all(Request req){
+      for (int i = 0; i < 16; i++) {
+        Request pim_req = req;
+        for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
+          apply_addr_mapp(pim_req, cnt);
+          // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
+          if (m_controllers[cnt]->send(pim_req) == false) {
+            return false;
+          }
         }
       }
       return true;
@@ -74,12 +89,14 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
         if (current_mode != Mode::SB){
           if (current_mode == Mode::PIM){
             Request r = Request(Opcode::TMOD_P);
-            if(send_all(r, s_num_trans_requests) == false) return false;
+            if(send_all(r) == false) return false;
+            s_num_trans_requests++;
             current_mode = Mode::AB;
           }
           if (current_mode == Mode::AB){
             Request r = Request(Opcode::TMOD_A);
-            if(send_all(r, s_num_trans_requests) == false) return false;
+            if(send_all(r) == false) return false;
+            s_num_trans_requests++;
             current_mode = Mode::SB;
           }
         }
@@ -106,41 +123,49 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
         if(current_mode != Mode::AB){
           if(current_mode == Mode::SB){
             Request r = Request(Opcode::TMOD_A);
-            if(send_all(r, s_num_trans_requests) == false) return false;
+            if(send_all(r) == false) return false;
+            s_num_trans_requests++;
             current_mode = Mode::AB;
           } else if(current_mode == Mode::PIM){
             Request r = Request(Opcode::TMOD_P);
-            if(send_all(r, s_num_trans_requests) == false) return false;
+            if(send_all(r) == false) return false;
+            s_num_trans_requests++;
             current_mode = Mode::AB;
           }
         }
 
-        if(send_all(req, s_num_write_requests) == false) return false;
+        if(send_all(req) == false) return false;
+        s_num_write_requests++;
       } 
       // PIM Operation
       else if (req.type_id == Request::Type::PIM){
         if(current_mode != Mode::PIM){
           if(current_mode == Mode::SB){
             Request r = Request(Opcode::TMOD_A);
-            if(send_all(r, s_num_trans_requests) == false) return false;
+            if(send_all(r) == false) return false;
+            s_num_trans_requests++;
             current_mode = Mode::AB;
           }
+          
           if(current_mode == Mode::AB){
             Request r = Request(Opcode::TMOD_A);
-            if(send_all(r, s_num_trans_requests) == false) return false;
+            if(send_all(r) == false) return false;
+            s_num_trans_requests++;
             current_mode = Mode::PIM;
           }
         }
 
-        if(send_all(req, s_num_pim_requests) == false) return false;
+        if(send_all(req) == false) return false;
+        s_num_pim_requests++;
       }
-
+      
       return true;
     };
     
     void tick() override {
       m_clk++;
       m_dram->tick();
+      
       for (auto controller : m_controllers) {
         controller->tick();
       }

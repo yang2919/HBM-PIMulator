@@ -32,8 +32,8 @@ private:
     size_t s_num_row_misses = 0;
     size_t s_num_row_conflicts = 0;
 
-    std::map<Opcode, int> s_num_RW_cycles;
-    std::map<Opcode, int> s_num_PIM_cycles;
+    std::map<int, int> s_num_RW_cycles;
+    std::map<int, int> s_num_PIM_cycles;
     std::map<int, int> s_num_commands;
     int s_num_idle_cycles = 0;
     int s_num_active_cycles = 0;
@@ -65,20 +65,32 @@ public:
         m_row_addr_idx = m_dram->m_levels("row");
         m_priority_buffer.max_size = 512 * 3 + 32;
         m_logger = Logging::create_logger("HBMPIMController[" + std::to_string(m_channel_id) + "]");
-        /*
-        for (const auto type : {Type::Read, Type::Write}) {
+        
+        for (const auto type : {Request::Type::Read, Request::Type::Write}) {
             s_num_RW_cycles[type] = 0;
             register_stat(s_num_RW_cycles[type])
                 .name(fmt::format("CH{}_{}_cycles",
                                   m_channel_id,
-                                  AiMISRInfo::convert_type_to_str(type)));
+                                  type == Request::Type::Read ? "Read": "Write"));
         }
-
-        for (int opcode = (int)Opcode::MIN + 1; opcode < (int)Opcode::MAX; opcode++) {
-            s_num_PIM_cycles[(Opcode)opcode] = 0;
-            register_stat(s_num_AiM_cycles[(Opcode)opcode])
-                .name(fmt::format("CH{}_AiM_{}_cycles", m_channel_id, AiMISRInfo::convert_AiM_opcode_to_str((Opcode)opcode)))
-                .desc(fmt::format("total number of AiM {} cycles", AiMISRInfo::convert_AiM_opcode_to_str((Opcode)opcode)));
+        
+        for (int opcode = Opcode::MAC; opcode <= Opcode::MAC; opcode++) {
+            s_num_PIM_cycles[opcode] = 0;
+            register_stat(s_num_PIM_cycles[opcode])
+                .name(fmt::format("CH{}_PIM_{}_cycles", m_channel_id, "MAC"))
+                .desc(fmt::format("total number of AiM {} cycles", "MAC"));
+        }
+        for (int opcode = Opcode::TMOD_A; opcode <= Opcode::TMOD_A; opcode++) {
+            s_num_PIM_cycles[opcode] = 0;
+            register_stat(s_num_PIM_cycles[opcode])
+                .name(fmt::format("CH{}_PIM_{}_cycles", m_channel_id, "TMOD_A"))
+                .desc(fmt::format("total number of AiM {} cycles", "TMOD_A"));
+        }
+        for (int opcode = Opcode::TMOD_P; opcode <= Opcode::TMOD_P; opcode++) {
+            s_num_PIM_cycles[opcode] = 0;
+            register_stat(s_num_PIM_cycles[opcode])
+                .name(fmt::format("CH{}_PIM_{}_cycles", m_channel_id, "TMOD_P"))
+                .desc(fmt::format("total number of AiM {} cycles", "TMOD_P"));
         }
 
         for (int command_id = 0; command_id < m_dram->m_commands.size(); command_id++) {
@@ -87,7 +99,7 @@ public:
                 .name(fmt::format("CH{}_num_{}_commands", m_channel_id, std::string(m_dram->m_commands(command_id))))
                 .desc(fmt::format("total number of {} commands", std::string(m_dram->m_commands(command_id))));
         }
-
+/*
         register_stat(s_num_idle_cycles)
             .name(fmt::format("CH{}_idle_cycles", m_channel_id))
             .desc(fmt::format("total number of idle cycles"));
@@ -115,9 +127,10 @@ public:
 
     bool send(Request &req) override {
         if (req.type_id == Request::Type::PIM) {
-            if ((m_write_buffer.size() != 0) || (m_read_buffer.size() != 0))
+            if ((m_write_buffer.size() != 0) || (m_read_buffer.size() != 0)){
                 return false;
-            req.final_command = m_dram->m_pim_requests_translations(0); //(int)req.operation_id
+            }
+            req.final_command = m_dram->m_pim_requests_translations((int)req.operation_id);
         } else {
             if (m_pim_buffer.size() != 0)
                 return false;
@@ -142,7 +155,7 @@ public:
         req.arrive = m_clk;
         if (req.type_id == Request::Type::Read) {
             is_success = m_read_buffer.enqueue(req);
-        } else if (req.operation_id == Request::Type::Write) {
+        } else if (req.type_id == Request::Type::Write) {
             is_success = m_write_buffer.enqueue(req);
         } else if (req.type_id == Request::Type::PIM) {
             is_success = m_pim_buffer.enqueue(req);
@@ -152,6 +165,7 @@ public:
         if (!is_success) {
             // We could not enqueue the request
             req.arrive = -1;
+
             return false;
         }
 
@@ -175,50 +189,57 @@ public:
         //     m_logger->info("[CLK {}]", m_clk);
 
         // 1. Serve completed reads
+              
       serve_completed_reads();
 
       m_refresh->tick();
-
       // 2. Try to find a request to serve.
       ReqBuffer::iterator req_it;
       ReqBuffer* buffer = nullptr;
       bool request_found = schedule_request(req_it, buffer);
 
-      // 2.1 Take row policy action
-      m_rowpolicy->update(request_found, req_it);
-
       // 3. Update all plugins
-      for (auto plugin : m_plugins) {
-        plugin->update(request_found, req_it);
-      }
-
+    //   for (auto plugin : m_plugins) {
+    //     plugin->update(request_found, req_it);
+    //   }
       // 4. Finally, issue the commands to serve the request
       if (request_found) {
         // If we find a real request to serve
-        if (req_it->is_stat_updated == false) {
-          update_request_stats(req_it);
-        }
+
+        if (req_it->issue == -1)
+            req_it->issue = m_clk - 1;
         m_dram->issue_command(req_it->command, req_it->addr_vec);
-
-        // If we are issuing the last command, set depart clock cycle and move the request to the pending queue
+        s_num_commands[req_it->command] += 1;
         if (req_it->command == req_it->final_command) {
-          if (req_it->type_id == Request::Type::Read) {
-            req_it->depart = m_clk + m_dram->m_read_latency;
-            pending_reads.push_back(*req_it);
-          } else if (req_it->type_id == Request::Type::Write) {
-            // TODO: Add code to update statistics
-          }
-          buffer->remove(req_it);
-        } else {
-          if (m_dram->m_command_meta(req_it->command).is_opening) {
-            if (m_active_buffer.enqueue(*req_it)) {
-              buffer->remove(req_it);
+            int latency = m_dram->m_command_latencies(req_it->command);
+            assert(latency > 0);
+            req_it->depart = m_clk + latency;
+            if (req_it->type_id == Request::Type::Read) {
+                pending_reads.push_back(*req_it);
+            } else {
+                pending_writes.push_back(*req_it);
             }
-          }
+            if (req_it->type_id == Request::Type::PIM) {
+                s_num_PIM_cycles[req_it->operation_id] += (m_clk - req_it->issue);
+            } else {
+                s_num_RW_cycles[req_it->type_id] += (m_clk - req_it->issue);
+            }
+            // else if (req_it->type == Type::Write) {
+            //     // TODO: Add code to update statistics
+            // }
+            buffer->remove(req_it);
+        } else if (req_it->type_id != Request::Type::PIM) {
+            if (m_dram->m_command_meta(req_it->command).is_opening) {
+                m_active_buffer.enqueue(*req_it);
+                buffer->remove(req_it);
+            }
         }
-
       }
-
+      else if (m_read_buffer.size() == 0 && m_write_buffer.size() == 0 && m_pim_buffer.size() == 0 && pending_reads.size() == 0 && pending_writes.size() == 0) {
+            // if (m_channel_id == 0)
+            // m_logger->info("[CLK {}] CH0 IDLE", m_clk);
+            s_num_idle_cycles += 1;
+        }
     };
 
 
@@ -343,7 +364,7 @@ public:
                 req_buffer = &m_active_buffer;
             }
         }
-
+        
         // 2.2    If no requests can be scheduled from the act buffer, check the rest of the buffers
         if (!request_found) {
             // 2.2.1    We first check the priority buffer to prioritize e.g., maintenance requests
@@ -351,13 +372,12 @@ public:
                 req_buffer = &m_priority_buffer;
                 req_it = m_priority_buffer.begin();
                 req_it->command = m_dram->get_preq_command(req_it->final_command, req_it->addr_vec);
-
                 request_found = m_dram->check_ready(req_it->command, req_it->addr_vec);
                 if ((request_found == false) & (m_priority_buffer.size() != 0)) {
                     return false;
                 }
             }
-
+            
             // 2.2.1    If no request to be scheduled in the priority buffer, check the read and write OR AiM buffers.
             if (!request_found) {
                 if (m_pim_buffer.size() != 0) {
@@ -365,7 +385,7 @@ public:
                     req_it->command = m_dram->get_preq_command(req_it->final_command, req_it->addr_vec);
                     request_found = m_dram->check_ready(req_it->command, req_it->addr_vec);
                     req_buffer = &m_pim_buffer;
-                    
+
                 } else {
                     // Query the write policy to decide which buffer to serve
                     set_write_mode();

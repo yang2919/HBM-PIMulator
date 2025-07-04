@@ -98,13 +98,14 @@ int main(int argc, char* argv[]) {
   int tick_mult = frontend_tick * mem_tick;
 
   for (uint64_t i = 0;; i++) {
-    if (((i % tick_mult) % mem_tick) == 0) {
+    if (((i % tick_mult) % mem_tick) == 0 && !frontend->is_finished()) {
       frontend->tick();
     }
 
-    if (frontend->is_finished()) {
-      break;
-    }
+    // if (frontend->is_finished()) {
+    //   break;
+    // }
+    if (i > 2048) break;
 
     if ((i % tick_mult) % frontend_tick == 0) {
       memory_system->tick();
