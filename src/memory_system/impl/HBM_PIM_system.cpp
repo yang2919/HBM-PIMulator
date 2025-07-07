@@ -7,6 +7,10 @@
 namespace Ramulator {
 
 class HBMPIMSystem  final : public IMemorySystem, public Implementation {
+
+  #define REQ_SIZE 1<<21
+  #define MAX_CHANNEL_COUNT 32
+
   RAMULATOR_REGISTER_IMPLEMENTATION(IMemorySystem, HBMPIMSystem, "HBMPIMSystem", "A HBM-PIM-based memory system.");
 
   protected:
@@ -14,6 +18,11 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
     IDRAM*  m_dram;
     IAddrMapper*  m_addr_mapper;
     std::vector<IDRAMController*> m_controllers;
+
+    std::queue<Request> request_queue;
+    std::queue<Request> remaining_requests[MAX_CHANNEL_COUNT];
+
+    bool finished = false;
 
     struct Mode{
       enum : int{
@@ -83,6 +92,31 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
       return true;
     }
 
+    bool send(Request req) override {
+          request_queue.push(req);
+          // m_logger->info("[CLK {}] {} pushed to the queue!", m_clk, req.str());
+
+          switch (req.type_id) {
+            case Request::Type::PIM: {
+                s_num_pim_requests++;
+                break;
+            }
+            case Request::Type::Read: {
+                s_num_read_requests++;
+            }
+            case Request::Type::Write: {
+                s_num_write_requests++;
+                break;
+            }
+            default: {
+                throw ConfigurationError("AiMDRAMSystem: unknown request type {}!", (int)req.type_id);
+                break;
+            }
+        }
+
+        return true;
+    };
+/*
     bool send(Request req) override { // Todo: seperate timing of transition and PIM commands.
       // SB operation
       if (req.type_id == Request::Type::Read || req.type_id == Request::Type::Write){ // Type Transition
@@ -160,9 +194,147 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
       }
       
       return true;
-    };
+    }; */
     
     void tick() override {
+      bool was_request_remaining = false;
+      for (int channel_id = 0; channel_id < MAX_CHANNEL_COUNT; channel_id++) {
+          while (remaining_requests[channel_id].empty() == false) {
+              was_request_remaining = true;
+              // m_logger->info("[CLK {}] 0- Sending {} to channel {}", m_clk, remaining_AiM_requests[channel_id].front().str(), channel_id);
+              if (m_controllers[channel_id]->send(remaining_requests[channel_id].front()) == false) {
+                  // m_logger->info("[CLK {}] 0- failed", m_clk, channel_id);
+                  break;
+              }
+              remaining_requests[channel_id].pop();
+          }
+      }
+
+      if(was_request_remaining == false){
+        if(request_queue.empty() == true){
+          finished = true;
+        }
+        else{
+          Request req = request_queue.front();
+          if (req.type_id == Request::Type::Read || req.type_id == Request::Type::Write){ // Type Transition
+            if (current_mode != Mode::SB){
+              if (current_mode == Mode::PIM){
+                Request r = Request(Opcode::TMOD_P);
+                for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
+                  apply_addr_mapp(r, cnt);
+                  // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
+                  if (m_controllers[cnt]->send(r) == false) {
+                    remaining_requests[cnt].push(r);
+                  }
+                }
+                
+                s_num_trans_requests++;
+                current_mode = Mode::AB;
+              }
+              if (current_mode == Mode::AB){
+                Request r = Request(Opcode::TMOD_A);
+                for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
+                  apply_addr_mapp(r, cnt);
+                  // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
+                  if (m_controllers[cnt]->send(r) == false) {
+                    remaining_requests[cnt].push(r);
+                  }
+                }
+
+                s_num_trans_requests++;
+                current_mode = Mode::SB;
+              }
+            }
+            
+            m_addr_mapper->apply(req);
+            int channel_id = req.addr_vec[0];
+            if(m_controllers[channel_id]->send(req) == false){
+              remaining_requests[channel_id].push(req);
+            }
+          } 
+
+          // AB Operation
+          else if (req.type_id == Request::Type::AB){
+            if(current_mode != Mode::AB){
+              if(current_mode == Mode::SB){
+                Request r = Request(Opcode::TMOD_A);
+                for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
+                  apply_addr_mapp(r, cnt);
+                  // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
+                  if (m_controllers[cnt]->send(r) == false) {
+                    remaining_requests[cnt].push(r);
+                  }
+                }
+
+                s_num_trans_requests++;
+                current_mode = Mode::AB;
+              } else if(current_mode == Mode::PIM){
+                Request r = Request(Opcode::TMOD_P);
+                for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
+                  apply_addr_mapp(r, cnt);
+                  // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
+                  if (m_controllers[cnt]->send(r) == false) {
+                    remaining_requests[cnt].push(r);
+                  }
+                }
+
+                s_num_trans_requests++;
+                current_mode = Mode::AB;
+              }
+            }
+
+            for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
+              apply_addr_mapp(req, cnt);
+              // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
+              if (m_controllers[cnt]->send(req) == false) {
+                remaining_requests[cnt].push(req);
+              }
+            }
+            s_num_write_requests++;
+          } 
+          // PIM Operation
+          else if (req.type_id == Request::Type::PIM){
+            if(current_mode != Mode::PIM){
+              if(current_mode == Mode::SB){
+                Request r = Request(Opcode::TMOD_A);
+                for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
+                  apply_addr_mapp(r, cnt);
+                  // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
+                  if (m_controllers[cnt]->send(r) == false) {
+                    remaining_requests[cnt].push(r);
+                  }
+                }
+
+                s_num_trans_requests++;
+                current_mode = Mode::AB;
+              }
+              
+              if(current_mode == Mode::AB){
+                Request r = Request(Opcode::TMOD_A);
+                for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
+                  apply_addr_mapp(r, cnt);
+                  // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
+                  if (m_controllers[cnt]->send(r) == false) {
+                    remaining_requests[cnt].push(r);
+                  }
+                }
+
+                s_num_trans_requests++;
+                current_mode = Mode::PIM;
+              }
+            }
+
+            for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
+              apply_addr_mapp(req, cnt);
+              // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
+              if (m_controllers[cnt]->send(req) == false) {
+                remaining_requests[cnt].push(req);
+              }
+            }
+          }
+        }
+      }
+
       m_clk++;
       m_dram->tick();
       
@@ -173,6 +345,11 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
 
     float get_tCK() override {
       return m_dram->m_timing_vals("tCK_ps") / 1000.0f;
+    }
+
+    bool is_finished()
+    {
+      return finished;
     }
 
     // const SpecDef& get_supported_requests() override {
