@@ -83,7 +83,7 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
       return true;
     }
 
-    bool send(Request req) override {
+    bool send(Request req) override { // Todo: seperate timing of transition and PIM commands.
       // SB operation
       if (req.type_id == Request::Type::Read || req.type_id == Request::Type::Write){ // Type Transition
         if (current_mode != Mode::SB){

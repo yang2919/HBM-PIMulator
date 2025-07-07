@@ -43,6 +43,8 @@ private:
 
     bool is_reg_RW_mode = false;
 
+    std::map<int, std::string> ISR_to_str;
+
 public:
     void init() override {
         m_wr_low_watermark = param<float>("wr_low_watermark").desc("Threshold for switching back to read mode.").default_val(0.2f);
@@ -58,6 +60,8 @@ public:
                 m_plugins.push_back(create_child_ifce<IControllerPlugin>(*it));
             }
         }
+
+        init_ISR();
     };
 
     void setup(IFrontEnd *frontend, IMemorySystem *memory_system) override {
@@ -74,23 +78,11 @@ public:
                                   type == Request::Type::Read ? "Read": "Write"));
         }
         
-        for (int opcode = Opcode::MAC; opcode <= Opcode::MAC; opcode++) {
+        for (int opcode = 0; opcode <= Opcode::TMOD_P; opcode++) {
             s_num_PIM_cycles[opcode] = 0;
             register_stat(s_num_PIM_cycles[opcode])
-                .name(fmt::format("CH{}_PIM_{}_cycles", m_channel_id, "MAC"))
-                .desc(fmt::format("total number of AiM {} cycles", "MAC"));
-        }
-        for (int opcode = Opcode::TMOD_A; opcode <= Opcode::TMOD_A; opcode++) {
-            s_num_PIM_cycles[opcode] = 0;
-            register_stat(s_num_PIM_cycles[opcode])
-                .name(fmt::format("CH{}_PIM_{}_cycles", m_channel_id, "TMOD_A"))
-                .desc(fmt::format("total number of AiM {} cycles", "TMOD_A"));
-        }
-        for (int opcode = Opcode::TMOD_P; opcode <= Opcode::TMOD_P; opcode++) {
-            s_num_PIM_cycles[opcode] = 0;
-            register_stat(s_num_PIM_cycles[opcode])
-                .name(fmt::format("CH{}_PIM_{}_cycles", m_channel_id, "TMOD_P"))
-                .desc(fmt::format("total number of AiM {} cycles", "TMOD_P"));
+                .name(fmt::format("CH{}_PIM_{}_cycles", m_channel_id, ISR_to_str[opcode]))
+                .desc(fmt::format("total number of PIM {} cycles", ISR_to_str[opcode]));
         }
 
         for (int command_id = 0; command_id < m_dram->m_commands.size(); command_id++) {
@@ -208,34 +200,33 @@ public:
 
         if (req_it->issue == -1)
             req_it->issue = m_clk - 1;
-        m_dram->issue_command(req_it->command, req_it->addr_vec);
-        s_num_commands[req_it->command] += 1;
-        if (req_it->command == req_it->final_command) {
-            int latency = m_dram->m_command_latencies(req_it->command);
-            assert(latency > 0);
-            req_it->depart = m_clk + latency;
-            if (req_it->type_id == Request::Type::Read) {
-                pending_reads.push_back(*req_it);
-            } else {
-                pending_writes.push_back(*req_it);
-            }
-            if (req_it->type_id == Request::Type::PIM) {
-                s_num_PIM_cycles[req_it->operation_id] += (m_clk - req_it->issue);
-            } else {
-                s_num_RW_cycles[req_it->type_id] += (m_clk - req_it->issue);
-            }
-            // else if (req_it->type == Type::Write) {
-            //     // TODO: Add code to update statistics
-            // }
-            buffer->remove(req_it);
-        } else if (req_it->type_id != Request::Type::PIM) {
-            if (m_dram->m_command_meta(req_it->command).is_opening) {
-                m_active_buffer.enqueue(*req_it);
+            m_dram->issue_command(req_it->command, req_it->addr_vec);
+            s_num_commands[req_it->command] += 1;
+            if (req_it->command == req_it->final_command) {
+                int latency = m_dram->m_command_latencies(req_it->command);
+                assert(latency > 0);
+                req_it->depart = m_clk + latency;
+                if (req_it->type_id == Request::Type::Read) {
+                    pending_reads.push_back(*req_it);
+                } else {
+                    pending_writes.push_back(*req_it);
+                }
+                
+                if (req_it->type_id == Request::Type::PIM) {
+                    s_num_PIM_cycles[req_it->operation_id] += (m_clk - req_it->issue);
+                } else {
+                    s_num_RW_cycles[req_it->type_id] += (m_clk - req_it->issue);
+                }
+
                 buffer->remove(req_it);
+            } else if (req_it->type_id != Request::Type::PIM) {
+                if (m_dram->m_command_meta(req_it->command).is_opening) {
+                    m_active_buffer.enqueue(*req_it);
+                    buffer->remove(req_it);
+                }
             }
         }
-      }
-      else if (m_read_buffer.size() == 0 && m_write_buffer.size() == 0 && m_pim_buffer.size() == 0 && pending_reads.size() == 0 && pending_writes.size() == 0) {
+        else if (m_read_buffer.size() == 0 && m_write_buffer.size() == 0 && m_pim_buffer.size() == 0 && pending_reads.size() == 0 && pending_writes.size() == 0) {
             // if (m_channel_id == 0)
             // m_logger->info("[CLK {}] CH0 IDLE", m_clk);
             s_num_idle_cycles += 1;
@@ -415,6 +406,21 @@ public:
         }
 
         return request_found;
+    }
+
+    void init_ISR()
+    {
+        ISR_to_str[Opcode::ADD] = "ADD";
+        ISR_to_str[Opcode::MAC] = "MAC";
+        ISR_to_str[Opcode::MAD] = "MAD";
+        ISR_to_str[Opcode::MUL] = "MUL";
+        ISR_to_str[Opcode::JUMP] = "JUMP";
+        ISR_to_str[Opcode::EXIT] = "EXIT";
+        ISR_to_str[Opcode::NOP] = "NOP";
+        ISR_to_str[Opcode::FILL] = "FILL";
+        ISR_to_str[Opcode::MOV] = "MOV";
+        ISR_to_str[Opcode::TMOD_A] = "TMOD_A";
+        ISR_to_str[Opcode::TMOD_P] = "TMOD_P";
     }
 };
 
