@@ -114,6 +114,45 @@ namespace Channel {
     }
     return cmd;
   };
+
+  template <class T>
+  int RequireAllRowsOpen(typename T::Node *node, int cmd, const AddrVec_t &addr_vec, Clk_t clk) {
+        int target_id = addr_vec[T::m_levels["row"]];
+        // printf("RequireAllRowsOpen for CMD (%s), row %d\n", std::string(T::m_commands(cmd)).c_str(), addr_vec[T::m_levels["row"]]);
+        assert(target_id != -1);
+        bool any_closed = false;
+        if constexpr (T::m_levels["bank"] - T::m_levels["channel"] == 2) {
+            for (auto bg : node->m_child_nodes) {
+                for (auto bank : bg->m_child_nodes) {
+                    if (bank->m_state == T::m_states["Closed"]) {
+                        any_closed = true;
+                        // printf("ch[%d] bg[%d] ba[%d] is closed!\n", node->m_node_id, bg->m_node_id, bank->m_node_id);
+                    } else {
+                        if (bank->m_row_state.find(target_id) == bank->m_row_state.end()) {
+                            // printf("ch[%d] bg[%d] ba[%d] is opened with another row!\n", node->m_node_id, bg->m_node_id, bank->m_node_id);
+                            return T::m_commands["PREA"];
+                        }
+                    }
+                }
+            }
+        } else if constexpr (T::m_levels["bank"] - T::m_levels["channel"] == 3) {
+            for (auto pc : node->m_child_nodes) {
+                for (auto bg : pc->m_child_nodes) {
+                    for (auto bank : bg->m_child_nodes) {
+                        if (bank->m_state == T::m_states["Closed"]) {
+                            any_closed = true;
+                        } else {
+                            if (bank->m_row_state.find(target_id) == bank->m_row_state.end())
+                                return T::m_commands["PREA"];
+                        }
+                    }
+                }
+            }
+        }
+        if (any_closed == true)
+            return T::m_commands["ACTA"];
+        return cmd;
+    };
 }       // namespace Channel
 }       // namespace Preq
 }       // namespace Lambdas

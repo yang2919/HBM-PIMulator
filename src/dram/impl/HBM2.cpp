@@ -39,21 +39,23 @@ class HBM2 : public IDRAM, public Implementation {
    *             Requests & Commands
    ***********************************************/
     inline static constexpr ImplDef m_commands = {
-      "ACT", 
+      "ACT", "ACTA",
       "PRE", "PREA",
       "RD",  "WR",  "RDA",  "WRA",
       "REFab", "REFsb",
-      "ALU", "DATA", "CON",
+      "MAC", "MUL", "ADD", 
+      "DATA", "CON",
       "TMOD", "RWR",
     };
 
     inline static const ImplLUT m_command_scopes = LUT (
       m_commands, m_levels, {
-        {"ACT",   "row"},
+        {"ACT",   "row"}, {"ACTA", "channel"},
         {"PRE",   "bank"},    {"PREA",   "channel"},
         {"RD",    "column"},  {"WR",     "column"}, {"RDA",   "column"}, {"WRA",   "column"},
         {"REFab", "channel"}, {"REFsb",  "bank"},
-        {"ALU", "bank"}, {"DATA", "bank"}, {"CON", "bank"},
+        {"MAC", "channel"}, {"MUL", "channel"}, {"ADD", "channel"},
+        {"DATA", "bank"}, {"CON", "bank"},
         {"TMOD", "channel"}, {"RWR", "rank"}
       }
     );
@@ -62,6 +64,7 @@ class HBM2 : public IDRAM, public Implementation {
       m_commands, {
                 // open?   close?   access?  refresh?
         {"ACT",   {true,   false,   false,   false}},
+        {"ACTA",   {true,   false,   false,   false}},
         {"PRE",   {false,  true,    false,   false}},
         {"PREA",  {false,  true,    false,   false}},
         {"RD",    {false,  false,   true,    false}},
@@ -69,7 +72,9 @@ class HBM2 : public IDRAM, public Implementation {
         {"RDA",   {false,  true,    true,    false}},
         {"WRA",   {false,  true,    true,    false}},
         {"REFab", {false,  false,   false,   true }},
-        {"ALU",   {false,  false,   true,    false}},
+        {"MAC",   {false,  false,   true,    false}},
+        {"MUL",   {false,  false,   true,    false}},
+        {"ADD",   {false,  false,   true,    false}},
         {"DATA",  {false,  false,   true,    false}},
         {"CON",   {false,  false,   false,   false}},
         {"TMOD",  {false,  false,   false,   false}},
@@ -93,10 +98,10 @@ class HBM2 : public IDRAM, public Implementation {
 
     inline static const ImplLUT m_pim_requests_translations = LUT(
       m_pim_requests, m_commands, {
-        {"MAC", "ALU"},
-        {"MUL", "ALU"},
-        {"MAD", "ALU"},
-        {"ADD", "ALU"},
+        {"MAC", "MAC"},
+        {"MUL", "MUL"},
+        {"MAD", "MAC"},
+        {"ADD", "ADD"},
         {"JUMP", "CON"},
         {"EXIT", "CON"},
         {"NOP", "CON"},
@@ -120,7 +125,7 @@ class HBM2 : public IDRAM, public Implementation {
       "nRTW",
       "nFAW",
       "nRFC", "nRFCSB", "nREFI", "nREFISB", "nRREFD",
-      "nALU", "nDATA", "nCON",
+      "nALU", "nDATA", "nCON", // nALU 분리
       "nTMOD", "nRWR",
       "tCK_ps"
     };
@@ -236,6 +241,7 @@ class HBM2 : public IDRAM, public Implementation {
 
       // Sanity check: is the calculated channel density the same as the provided one?
       size_t _density = size_t(m_organization.count[m_levels["channel"]]) *
+                        size_t(m_organization.count[m_levels["pseudochannel"]]) *
                         size_t(m_organization.count[m_levels["bankgroup"]]) *
                         size_t(m_organization.count[m_levels["bank"]]) *
                         size_t(m_organization.count[m_levels["row"]]) *
@@ -335,6 +341,9 @@ class HBM2 : public IDRAM, public Implementation {
       // Populate the timing constraints
       #define V(timing) (m_timing_vals(timing))
       populate_timingcons(this, {
+
+          /* Todo : Add timing constraints of ACTA and ALU commands*/
+
           /*** Channel ***/ 
           /// 2-cycle ACT command (for row commands)
           {.level = "channel", .preceding = {"ACT"}, .following = {"ACT", "PRE", "PREA", "REFab", "REFsb", "ALU"}, .latency = 2},
@@ -421,6 +430,7 @@ class HBM2 : public IDRAM, public Implementation {
 
       // Channel Actions
       m_actions[m_levels["channel"]][m_commands["PREA"]] = Lambdas::Action::Channel::PREab<HBM2>;
+      m_actions[m_levels["channel"]][m_commands["ACTA"]] = Lambdas::Action::Channel::ACTab<HBM2>;
 
       // Bank actions
       m_actions[m_levels["bank"]][m_commands["ACT"]] = Lambdas::Action::Bank::ACT<HBM2>;
@@ -434,12 +444,14 @@ class HBM2 : public IDRAM, public Implementation {
 
       // Channel Actions
       m_preqs[m_levels["channel"]][m_commands["REFab"]] = Lambdas::Preq::Channel::RequireAllBanksClosed<HBM2>;
+      m_preqs[m_levels["channel"]][m_commands["MAC"]] = Lambdas::Preq::Channel::RequireAllRowsOpen<HBM2>;
+      m_preqs[m_levels["channel"]][m_commands["MUL"]] = Lambdas::Preq::Channel::RequireAllRowsOpen<HBM2>;
+      m_preqs[m_levels["channel"]][m_commands["ADD"]] = Lambdas::Preq::Channel::RequireAllRowsOpen<HBM2>;
 
       // Bank actions
       m_preqs[m_levels["bank"]][m_commands["REFsb"]] = Lambdas::Preq::Bank::RequireBankClosed<HBM2>;
       m_preqs[m_levels["bank"]][m_commands["RD"]] = Lambdas::Preq::Bank::RequireRowOpen<HBM2>;
       m_preqs[m_levels["bank"]][m_commands["WR"]] = Lambdas::Preq::Bank::RequireRowOpen<HBM2>;
-      m_preqs[m_levels["bank"]][m_commands["ALU"]] = Lambdas::Preq::Bank::RequireRowOpen<HBM2>;
     };
 
     void set_rowhits() {

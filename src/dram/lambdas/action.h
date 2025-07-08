@@ -139,6 +139,35 @@ namespace Channel {
       );
     }
   };
+
+  template <class T>
+  void ACTab(typename T::Node *node, int cmd, int target_id, Clk_t clk) {
+    if constexpr (T::m_levels["bank"] - T::m_levels["channel"] == 2) {
+        for (auto bg : node->m_child_nodes) {
+            for (auto bank : bg->m_child_nodes) {
+                // assert(bank->m_state == T::m_states["Closed"]);
+                // assert(bank->m_row_state.size() == 0);
+                bank->m_state = T::m_states["Opened"];
+                bank->m_row_state[target_id] = T::m_states["Opened"];
+            }
+        }
+    } else if constexpr (T::m_levels["bank"] - T::m_levels["channel"] == 3) {
+        for (auto pc : node->m_child_nodes) {
+            for (auto bg : pc->m_child_nodes) {
+                for (auto bank : bg->m_child_nodes) {
+                    // assert(bank->m_state == T::m_states["Closed"]);
+                    // assert(bank->m_row_state.size() == 0);
+                    bank->m_state = T::m_states["Opened"];
+                    bank->m_row_state[target_id] = T::m_states["Opened"];
+                }
+            }
+        }
+    } else {
+        static_assert(
+            false_v<T>,
+            "[Action::Rank] Unsupported organization. Please write your own ACTab function.");
+    }
+};
 }      // namespace Channel
 }       // namespace Action
 }       // namespace Lambdas
