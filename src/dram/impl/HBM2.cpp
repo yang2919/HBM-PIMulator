@@ -8,7 +8,7 @@ class HBM2 : public IDRAM, public Implementation {
 
   public:
     inline static const std::map<std::string, Organization> org_presets = {
-      //   name     density   DQ    Ra Ch  Bg Ba   Ro     Co
+      //   name     density   DQ    Ch pCh  Bg Ba   Ro     Co
       {"HBM2_2Gb",   {2<<10,  128,  {1, 2,  4,  2, 1<<14, 1<<6}}},
       {"HBM2_4Gb",   {4<<10,  128,  {1, 2,  4,  4, 1<<14, 1<<6}}},
       {"HBM2_8Gb",   {6<<10,  128,  {1, 2,  4,  4, 1<<15, 1<<6}}},
@@ -31,7 +31,7 @@ class HBM2 : public IDRAM, public Implementation {
     const int m_internal_prefetch_size = 2;
 
     inline static constexpr ImplDef m_levels = {
-      "rank", "channel", "bankgroup", "bank", "row", "column",    
+      "channel", "pseudochannel", "bankgroup", "bank", "row", "column",    
     };
 
 
@@ -135,8 +135,8 @@ class HBM2 : public IDRAM, public Implementation {
 
     inline static const ImplLUT m_init_states = LUT (
       m_levels, m_states, {
-        {"rank",       "N/A"}, 
-        {"channel",    "N/A"}, 
+        {"channel",       "N/A"}, 
+        {"pseudochannel", "N/A"}, 
         {"bankgroup",     "N/A"},
         {"bank",          "Closed"},
         {"row",           "Closed"},
@@ -342,7 +342,7 @@ class HBM2 : public IDRAM, public Implementation {
 
           
           /*** Pseudo Channel (Table 3 — Array Access Timings Counted Individually Per Pseudo Channel, JESD-235C) ***/ 
-          /*
+          
           // RAS <-> RAS
           {.level = "pseudochannel", .preceding = {"ACT"}, .following = {"ACT"}, .latency = V("nRRDS")},
           /// 4-activation window restriction
@@ -381,7 +381,7 @@ class HBM2 : public IDRAM, public Implementation {
           {.level = "pseudochannel", .preceding = {"PRE", "PREA"}, .following = {"REFab"}, .latency = V("nRP")},          
           {.level = "pseudochannel", .preceding = {"RDA"}, .following = {"REFab"}, .latency = V("nRP") + V("nRTPS")},          
           {.level = "pseudochannel", .preceding = {"WRA"}, .following = {"REFab"}, .latency = V("nCWL") + V("nBL") + V("nWR") + V("nRP")},          
-          {.level = "pseudochannel", .preceding = {"REFab"}, .following = {"ACT", "REFsb"}, .latency = V("nRFC")},          */
+          {.level = "pseudochannel", .preceding = {"REFab"}, .following = {"ACT", "REFsb"}, .latency = V("nRFC")},
 
           /*** Same Bank Group ***/ 
           /// CAS <-> CAS
@@ -439,8 +439,7 @@ class HBM2 : public IDRAM, public Implementation {
       m_preqs[m_levels["bank"]][m_commands["REFsb"]] = Lambdas::Preq::Bank::RequireBankClosed<HBM2>;
       m_preqs[m_levels["bank"]][m_commands["RD"]] = Lambdas::Preq::Bank::RequireRowOpen<HBM2>;
       m_preqs[m_levels["bank"]][m_commands["WR"]] = Lambdas::Preq::Bank::RequireRowOpen<HBM2>;
-
-      m_preqs[m_levels["bank"]][m_commands["ALU"]] = Lambdas::Preq::Bank::RequireBankClosed<HBM2>;
+      m_preqs[m_levels["bank"]][m_commands["ALU"]] = Lambdas::Preq::Bank::RequireRowOpen<HBM2>;
     };
 
     void set_rowhits() {
