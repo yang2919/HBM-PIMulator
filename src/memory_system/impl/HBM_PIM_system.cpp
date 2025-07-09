@@ -103,13 +103,14 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
             }
             case Request::Type::Read: {
                 s_num_read_requests++;
+                break;
             }
             case Request::Type::Write: {
                 s_num_write_requests++;
                 break;
             }
             default: {
-                throw ConfigurationError("AiMDRAMSystem: unknown request type {}!", (int)req.type_id);
+                throw ConfigurationError("DRAMSystem: unknown request type {}!", (int)req.type_id);
                 break;
             }
         }
@@ -216,6 +217,7 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
         }
         else{
           Request req = request_queue.front();
+          request_queue.pop();
           if (req.type_id == Request::Type::Read || req.type_id == Request::Type::Write){ // Type Transition
             if (current_mode != Mode::SB){
               if (current_mode == Mode::PIM){

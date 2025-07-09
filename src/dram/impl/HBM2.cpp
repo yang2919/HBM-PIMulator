@@ -56,7 +56,7 @@ class HBM2 : public IDRAM, public Implementation {
         {"REFab", "channel"}, {"REFsb",  "bank"},
         {"MAC", "channel"}, {"MUL", "channel"}, {"ADD", "channel"},
         {"DATA", "bank"}, {"CON", "bank"},
-        {"TMOD", "channel"}, {"RWR", "rank"}
+        {"TMOD", "channel"}, {"RWR", "channel"}
       }
     );
 
@@ -335,7 +335,7 @@ class HBM2 : public IDRAM, public Implementation {
       m_read_latency = m_timing_vals("nCL") + m_timing_vals("nBL");
       m_command_latencies("WR") = m_timing_vals("nCWL") + m_timing_vals("nBL");
       m_command_latencies("RD") = m_timing_vals("nCL") + m_timing_vals("nBL");
-      m_command_latencies("ALU") = 2;
+      m_command_latencies("MAC") = 2;
       m_command_latencies("TMOD") = 1;
       
       // Populate the timing constraints
@@ -346,8 +346,8 @@ class HBM2 : public IDRAM, public Implementation {
 
           /*** Channel ***/ 
           /// 2-cycle ACT command (for row commands)
-          {.level = "channel", .preceding = {"ACT"}, .following = {"ACT", "PRE", "PREA", "REFab", "REFsb", "ALU"}, .latency = 2},
-          {.level = "channel", .preceding = {"TMOD"}, .following = {"ACT", "PREA", "PRE", "RD", "WR", "RDA", "WRA", "REFab", "ALU", "TMOD"}, .latency = V("nTMOD")},
+          {.level = "channel", .preceding = {"ACT"}, .following = {"ACT", "PRE", "PREA", "REFab", "REFsb", "MAC"}, .latency = 2},
+          {.level = "channel", .preceding = {"TMOD"}, .following = {"ACT", "PREA", "PRE", "RD", "WR", "RDA", "WRA", "REFab", "MAC", "TMOD"}, .latency = V("nTMOD")},
 
           
           /*** Pseudo Channel (Table 3 — Array Access Timings Counted Individually Per Pseudo Channel, JESD-235C) ***/ 
@@ -416,7 +416,7 @@ class HBM2 : public IDRAM, public Implementation {
           {.level = "bank", .preceding = {"RDA"}, .following = {"ACT", "REFsb"}, .latency = V("nRTPL") + V("nRP")},  
           {.level = "bank", .preceding = {"WRA"}, .following = {"ACT", "REFsb"}, .latency = V("nCWL") + V("nBL") + V("nWR") + V("nRP")}, 
 
-          {.level = "bank", .preceding = {"ACT"}, .following = {"ALU"}, .latency = V("nALU")},
+          {.level = "bank", .preceding = {"ACT"}, .following = {"MAC"}, .latency = V("nALU")},
           {.level = "bank", .preceding = {"ACT"}, .following = {"DATA"}, .latency = V("nDATA")},
           {.level = "bank", .preceding = {"ACT"}, .following = {"CON"}, .latency = V("nCON")},
         }
