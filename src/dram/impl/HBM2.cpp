@@ -43,7 +43,8 @@ class HBM2 : public IDRAM, public Implementation {
       "PRE", "PREA",
       "RD",  "WR",  "RDA",  "WRA",
       "REFab", "REFsb",
-      "MAC", "MUL", "ADD", 
+      "MAC", "MUL", "ADD",
+      "MACRF", "MULRF", "ADDRF",
       "DATA", "CON",
       "TMOD", "RWR",
     };
@@ -55,6 +56,7 @@ class HBM2 : public IDRAM, public Implementation {
         {"RD",    "column"},  {"WR",     "column"}, {"RDA",   "column"}, {"WRA",   "column"},
         {"REFab", "channel"}, {"REFsb",  "bank"},
         {"MAC", "channel"}, {"MUL", "channel"}, {"ADD", "channel"},
+        {"MACRF", "channel"}, {"MULRF", "channel"}, {"ADDRF", "channel"},
         {"DATA", "bank"}, {"CON", "bank"},
         {"TMOD", "channel"}, {"RWR", "channel"}
       }
@@ -75,6 +77,9 @@ class HBM2 : public IDRAM, public Implementation {
         {"MAC",   {false,  false,   true,    false}},
         {"MUL",   {false,  false,   true,    false}},
         {"ADD",   {false,  false,   true,    false}},
+        {"MACRF", {false,  false,   false,   false}},
+        {"MULRF", {false,  false,   false,   false}},
+        {"ADDRF", {false,  false,   false,   false}},
         {"DATA",  {false,  false,   true,    false}},
         {"CON",   {false,  false,   false,   false}},
         {"TMOD",  {false,  false,   false,   false}},
@@ -102,6 +107,10 @@ class HBM2 : public IDRAM, public Implementation {
         {"MUL", "MUL"},
         {"MAD", "MAC"},
         {"ADD", "ADD"},
+        {"MACRF", "MACRF"},
+        {"MULRF", "MULRF"},
+        {"MADRF", "MACRF"},
+        {"ADDRF", "ADDRF"},
         {"JUMP", "CON"},
         {"EXIT", "CON"},
         {"NOP", "CON"},
@@ -349,7 +358,32 @@ class HBM2 : public IDRAM, public Implementation {
           {.level = "channel", .preceding = {"ACT"}, .following = {"ACT", "PRE", "PREA", "REFab", "REFsb", "MAC"}, .latency = 2},
           {.level = "channel", .preceding = {"TMOD"}, .following = {"ACT", "PREA", "PRE", "RD", "WR", "RDA", "WRA", "REFab", "MAC", "TMOD"}, .latency = V("nTMOD")},
 
+          /// RAS <-> RAS
+          // "ACTIVATE to ACTIVATE in a different bank group"
+          {.level = "channel", .preceding = {"ACT", "ACTA"}, .following = {"ACT", "ACTA"}, .latency = V("nRRDS")},
+          // "ACTIVATE to ACTIVATE in the same bank group"
+          {.level = "channel", .preceding = {"ACT", "ACTA"}, .following = {"ACT", "ACTA"}, .latency = V("nRRDL")},
+          //   {.level = "channel", .preceding = {"ACT"}, .following = {"ACT"}, .latency = V("nFAW"), .window = 4}, // Depricated because of the paper
+          // "A minimum time, tRAS, must have elapsed between opening and closing a row."
+          {.level = "channel", .preceding = {"ACT", "ACTA"}, .following = {"PREA"}, .latency = V("nRAS")},
+          {.level = "channel", .preceding = {"ACTA"}, .following = {"PRE"}, .latency = V("nRAS")},
+          // "After the PRECHARGE command, a subsequent command to the same bank cannot be issued until tRP is met."
+          {.level = "channel", .preceding = {"PRE", "PREA"}, .following = {"ACTA"}, .latency = V("nRP")},
+          {.level = "channel", .preceding = {"PREA"}, .following = {"ACT", "ACTA"}, .latency = V("nRP")},
+          // "An ACTIVATE (ACT) command is required to be issued before the WRITE command to the same bank, and tRCDWR must be met."
+          {.level = "channel", .preceding = {"ACTA"}, .following = {"WR", "WRA"}, .latency = V("nRCDWR")},
+          {.level = "channel", .preceding = {"RDA"}, .following = {"ACTA"}, .latency = V("nRTP") + V("nRP")},
+          {.level = "channel", .preceding = {"WRA"}, .following = {"ACTA"}, .latency = V("nCWL") + V("nBL") + V("nWR") + V("nRP")},
           
+          // PIM <-> PIM
+          // "PIM operation time"
+          {.level = "channel", .preceding = {"MAC"}, .following = {"MAC", "MUL", "ADD", "MACRF", "MULRF", "ADDRF", "ACTA", "PREA", "ACT", "PRE", "TMOD"}, .latency = 20},
+          {.level = "channel", .preceding = {"MUL", "ADD", "MACRF"}, .following = {"MAC", "MUL", "ADD", "MACRF", "MULRF", "ADDRF", "ACTA", "PREA", "ACT", "PRE", "TMOD"}, .latency = 16},
+          {.level = "channel", .preceding = {"MULRF", "ADDRF"}, .following = {"MAC", "MUL", "ADD", "MACRF", "MULRF", "ADDRF", "ACTA", "PREA", "ACT", "PRE", "TMOD"}, .latency = 12},
+          // "Activate all banks before pim operation"
+          {.level = "channel", .preceding = {"ACTA"}, .following = {"MAC", "MUL", "ADD"}, .latency = V("nRCDRD")},
+
+
           /*** Pseudo Channel (Table 3 — Array Access Timings Counted Individually Per Pseudo Channel, JESD-235C) ***/ 
           
           // RAS <-> RAS
