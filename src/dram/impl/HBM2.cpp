@@ -98,7 +98,7 @@ class HBM2 : public IDRAM, public Implementation {
     );
 
     inline static constexpr ImplDef m_pim_requests = {
-      "MAC", "MUL", "MAD", "ADD", "JUMP", "EXIT", "NOP", "FILL", "MOV", "TMOD_A", "TMOD_P"
+      "MAC", "MUL", "MAD", "ADD", "MACRF", "MULRF", "MADRF", "ADDRF", "JUMP", "EXIT", "NOP", "FILL", "MOV", "TMOD_A", "TMOD_P"
     };
 
     inline static const ImplLUT m_pim_requests_translations = LUT(
@@ -372,7 +372,7 @@ class HBM2 : public IDRAM, public Implementation {
           {.level = "channel", .preceding = {"PREA"}, .following = {"ACT", "ACTA"}, .latency = V("nRP")},
           // "An ACTIVATE (ACT) command is required to be issued before the WRITE command to the same bank, and tRCDWR must be met."
           {.level = "channel", .preceding = {"ACTA"}, .following = {"WR", "WRA"}, .latency = V("nRCDWR")},
-          {.level = "channel", .preceding = {"RDA"}, .following = {"ACTA"}, .latency = V("nRTP") + V("nRP")},
+          {.level = "channel", .preceding = {"RDA"}, .following = {"ACTA"}, .latency = V("nRTPL") + V("nRP")},
           {.level = "channel", .preceding = {"WRA"}, .following = {"ACTA"}, .latency = V("nCWL") + V("nBL") + V("nWR") + V("nRP")},
           
           // PIM <-> PIM

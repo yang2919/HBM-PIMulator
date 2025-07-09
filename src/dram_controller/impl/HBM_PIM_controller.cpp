@@ -204,6 +204,7 @@ public:
             s_num_commands[req_it->command] += 1;
             if (req_it->command == req_it->final_command) {
                 int latency = m_dram->m_command_latencies(req_it->command);
+                std::cout<<"Command : "<<req_it->operation_id<<" latency : "<<latency<<std::endl;
                 assert(latency > 0);
                 req_it->depart = m_clk + latency;
                 if (req_it->type_id == Request::Type::Read) {
