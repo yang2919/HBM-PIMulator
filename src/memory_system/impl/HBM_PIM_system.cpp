@@ -42,7 +42,16 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
         req.addr_vec[2] = 0;
         
         req.addr_vec[3] = 0;
-        req.addr_vec[4] = 0;
+        if(req.poperand.size() == 0)
+          req.addr_vec[4] = 0;
+        else {
+          if(req.poperand[0].loc == LOCATE::BANK){
+              req.addr_vec[4] = req.poperand[0].addr;
+          }
+          else if(req.poperand[1].loc == LOCATE::BANK){
+              req.addr_vec[4] = req.poperand[1].addr;
+          }
+        }
     }
 
   public:
@@ -77,20 +86,6 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
     };
 
     void setup(IFrontEnd* frontend, IMemorySystem* memory_system) override { }
-
-    bool send_all(Request req){
-      for (int i = 0; i < 16; i++) {
-        Request pim_req = req;
-        for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
-          apply_addr_mapp(pim_req, cnt);
-          // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
-          if (m_controllers[cnt]->send(pim_req) == false) {
-            return false;
-          }
-        }
-      }
-      return true;
-    }
 
     bool send(Request req) override {
           request_queue.push(req);

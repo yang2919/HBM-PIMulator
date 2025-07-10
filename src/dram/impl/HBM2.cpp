@@ -17,8 +17,8 @@ class HBM2 : public IDRAM, public Implementation {
 
     inline static const std::map<std::string, std::vector<int>> timing_presets = {
       //   name       rate   nBL  nCL  nRCDRD  nRCDWR  nRP  nRAS  nRC  nWR  nRTPS  nRTPL  nCWL  nCCDS  nCCDL  nRRDS  nRRDL  nWTRS  nWTRL  nRTW  nFAW  nRFC  nRFCSB  nREFI  nREFISB  nRREFD   nALU  nDATA  nCON  nMOD  nRWR  tCK_ps
-      {"HBM2_2Gbps",  {2000,   4,   7,    7,      7,     7,   17,  19,   8,    2,     3,    2,    1,      2,     2,     3,     3,     4,    3,    15,   -1,   160,   3900,     -1,      8,     16,    16,    4,   4,    4,    1000}},
-      {"HBM2_PIM_6Gb_timing",  {2000,   4,   7,    7,      7,     7,   17,  19,   8,    2,     3,    2,    1,      2,     2,     3,     3,     4,    3,    15,   -1,   160,   3900,     -1,      8,   16,    16,    4,   4,    4,  1000}},
+      {"HBM2_2Gbps",  {2000,   4,   7,    7,      7,     7,   17,  19,   8,    2,     3,    2,    1,      2,     2,     3,     3,     4,    3,    15,   -1,   160,   3900,     -1,      8,     16,    16,    4,   6,    4,    1000}},
+      {"HBM2_PIM_6Gb_timing",  {2000,   4,   7,    7,      7,     7,   17,  19,   8,    2,     3,    2,    1,      2,     2,     3,     3,     4,    3,    15,   -1,   160,   3900,     -1,      8,   16,    16,    4,   6,    4,  1000}},
       // TODO: Find more sources on HBM2 timings...
       // Todo: 추가할 timing parameter 결정. nALU -> 4*4, nDATA -> 4*4, nCON -> 1*4. Mode transition timing parameter랑, AB mode에서 PU register에 write할 때 timing parameter 필요.
       // nALU, nDATA, nCON, nMOD, nRWR
@@ -208,8 +208,8 @@ class HBM2 : public IDRAM, public Implementation {
     bool check_rowbuffer_hit(int command, const AddrVec_t& addr_vec) override {
       int channel_id = addr_vec[m_levels["channel"]];
       return m_channels[channel_id]->check_rowbuffer_hit(command, addr_vec, m_clk);
-    };
-    
+    }
+
     bool check_node_open(int command, const AddrVec_t& addr_vec) override {
       int channel_id = addr_vec[m_levels["channel"]];
       return m_channels[channel_id]->check_node_open(command, addr_vec, m_clk);
@@ -344,7 +344,10 @@ class HBM2 : public IDRAM, public Implementation {
       m_read_latency = m_timing_vals("nCL") + m_timing_vals("nBL");
       m_command_latencies("WR") = m_timing_vals("nCWL") + m_timing_vals("nBL");
       m_command_latencies("RD") = m_timing_vals("nCL") + m_timing_vals("nBL");
-      m_command_latencies("MAC") = 2;
+      m_command_latencies("MAC") = 1;
+      m_command_latencies("MUL") = 1;
+      m_command_latencies("ADD") = 1;
+
       m_command_latencies("TMOD") = 1;
       
       // Populate the timing constraints
@@ -356,7 +359,7 @@ class HBM2 : public IDRAM, public Implementation {
           /*** Channel ***/ 
           /// 2-cycle ACT command (for row commands)
           {.level = "channel", .preceding = {"ACT"}, .following = {"ACT", "PRE", "PREA", "REFab", "REFsb", "MAC"}, .latency = 2},
-          {.level = "channel", .preceding = {"TMOD"}, .following = {"ACT", "PREA", "PRE", "RD", "WR", "RDA", "WRA", "REFab", "MAC", "TMOD"}, .latency = V("nTMOD")},
+          {.level = "channel", .preceding = {"TMOD"}, .following = {"ACT", "ACTA", "PREA", "PRE", "RD", "WR", "RDA", "WRA", "REFab", "MAC", "TMOD"}, .latency = V("nRRDL")*2},
 
           /// RAS <-> RAS
           // "ACTIVATE to ACTIVATE in a different bank group"
@@ -379,9 +382,11 @@ class HBM2 : public IDRAM, public Implementation {
           // "PIM operation time"
           {.level = "channel", .preceding = {"MAC"}, .following = {"MAC", "MUL", "ADD", "MACRF", "MULRF", "ADDRF", "ACTA", "PREA", "ACT", "PRE", "TMOD"}, .latency = 20},
           {.level = "channel", .preceding = {"MUL", "ADD", "MACRF"}, .following = {"MAC", "MUL", "ADD", "MACRF", "MULRF", "ADDRF", "ACTA", "PREA", "ACT", "PRE", "TMOD"}, .latency = 16},
-          {.level = "channel", .preceding = {"MULRF", "ADDRF"}, .following = {"MAC", "MUL", "ADD", "MACRF", "MULRF", "ADDRF", "ACTA", "PREA", "ACT", "PRE", "TMOD"}, .latency = 12},
+          {.level = "channel", .preceding = {"MULRF", "ADDRF", "DATA"}, .following = {"MAC", "MUL", "ADD", "MACRF", "MULRF", "ADDRF", "ACTA", "PREA", "ACT", "PRE", "TMOD"}, .latency = 12},
+
           // "Activate all banks before pim operation"
-          {.level = "channel", .preceding = {"ACTA"}, .following = {"MAC", "MUL", "ADD"}, .latency = V("nRCDRD")},
+          {.level = "channel", .preceding = {"ACTA"}, .following = {"MAC", "MUL", "ADD", "DATA"}, .latency = V("nRRDS")*4*4},
+          {.level = "channel", .preceding = {"ACTA"}, .following = {"MAC", "MUL", "ADD", "DATA"}, .latency = V("nFAW")*4},
 
 
           /*** Pseudo Channel (Table 3 — Array Access Timings Counted Individually Per Pseudo Channel, JESD-235C) ***/ 
@@ -481,6 +486,7 @@ class HBM2 : public IDRAM, public Implementation {
       m_preqs[m_levels["channel"]][m_commands["MAC"]] = Lambdas::Preq::Channel::RequireAllRowsOpen<HBM2>;
       m_preqs[m_levels["channel"]][m_commands["MUL"]] = Lambdas::Preq::Channel::RequireAllRowsOpen<HBM2>;
       m_preqs[m_levels["channel"]][m_commands["ADD"]] = Lambdas::Preq::Channel::RequireAllRowsOpen<HBM2>;
+      m_preqs[m_levels["channel"]][m_commands["DATA"]] = Lambdas::Preq::Channel::RequireAllRowsOpen<HBM2>;
 
       // Bank actions
       m_preqs[m_levels["bank"]][m_commands["REFsb"]] = Lambdas::Preq::Bank::RequireBankClosed<HBM2>;

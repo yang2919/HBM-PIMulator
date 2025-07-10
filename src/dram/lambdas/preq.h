@@ -129,7 +129,7 @@ namespace Channel {
                         // printf("ch[%d] bg[%d] ba[%d] is closed!\n", node->m_node_id, bg->m_node_id, bank->m_node_id);
                     } else {
                         if (bank->m_row_state.find(target_id) == bank->m_row_state.end()) {
-                            // printf("ch[%d] bg[%d] ba[%d] is opened with another row!\n", node->m_node_id, bg->m_node_id, bank->m_node_id);
+                            //printf("ch[%d] bg[%d] ba[%d] is opened with another row!\n", node->m_node_id, bg->m_node_id, bank->m_node_id);
                             return T::m_commands["PREA"];
                         }
                     }
@@ -142,8 +142,10 @@ namespace Channel {
                         if (bank->m_state == T::m_states["Closed"]) {
                             any_closed = true;
                         } else {
-                            if (bank->m_row_state.find(target_id) == bank->m_row_state.end())
+                            if (bank->m_row_state.find(target_id) == bank->m_row_state.end()){
+                              //printf("ch[%d] bg[%d] ba[%d] is opened with another row!\n", node->m_node_id, bg->m_node_id, bank->m_node_id);
                                 return T::m_commands["PREA"];
+                            }
                         }
                     }
                 }

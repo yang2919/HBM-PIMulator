@@ -105,9 +105,10 @@ int main(int argc, char* argv[]) {
     // if (frontend->is_finished()) {
     //   break;
     // }
-    if (memory_system->is_finished()) {
-      break;
-    }
+    // if (memory_system->is_finished()) {
+    //   break;
+    // }
+    if ( i > 2048) break;
 
     if ((i % tick_mult) % frontend_tick == 0) {
       memory_system->tick();

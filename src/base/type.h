@@ -21,10 +21,14 @@ enum LOCATE{
 
 struct Opcode {
     enum : int{
-            ADD=0,
-            MUL,
             MAC,
+            MUL,
             MAD,
+            ADD,
+            MACRF,
+            MULRF,
+            MADRF,
+            ADDRF,
             MOV,
             FILL,
             NOP,

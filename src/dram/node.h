@@ -88,24 +88,25 @@ struct DRAMNodeBase {
       }
     };
 
-    void update_states(int command, const AddrVec_t& addr_vec, Clk_t clk) {
-      int child_id = addr_vec[m_level+1];
-      if (m_spec->m_actions[m_level][command]) {
-        // update the state machine at this level
-        m_spec->m_actions[m_level][command](static_cast<NodeType*>(this), command, child_id, clk); 
-      }
-      if (m_level == m_spec->m_command_scopes[command] || !m_child_nodes.size()) {
-        // stop recursion: updated all levels
-        return; 
-      }
-      // recursively update child nodes
-      if (child_id == -1) {
-        for (auto child : m_child_nodes) {
-          child->update_states(command, addr_vec, clk);
+    void update_states(int command, const AddrVec_t &addr_vec, Clk_t clk) {
+        if (m_spec->m_actions[m_level][command]) {
+            // update the state machine at this level
+            m_spec->m_actions[m_level][command](static_cast<NodeType *>(this), command, addr_vec, clk);
         }
-      } else {
+        if (m_level == m_spec->m_command_scopes[command] || !m_child_nodes.size()) {
+            // stop recursion: updated all levels
+            return;
+        }
+        // recursively update child nodes
+        int child_id = addr_vec[m_level + 1];
+
+        if (child_id < 0) {
+            // stop recursion: there were no prequisites at any level
+            return;
+        }
+
+        assert(child_id < m_child_nodes.size());
         m_child_nodes[child_id]->update_states(command, addr_vec, clk);
-      }
     };
 
     void update_powers(int command, const AddrVec_t& addr_vec, Clk_t clk) {
@@ -265,7 +266,7 @@ struct DRAMNodeBase {
 };
 
 template<class T>
-using ActionFunc_t = std::function<void(typename T::Node* node, int cmd, int target_id, Clk_t clk)>;
+using ActionFunc_t = std::function<void(typename T::Node* node, int cmd, const AddrVec_t& addr_vec, Clk_t clk)>;
 template<class T>
 using PreqFunc_t   = std::function<int (typename T::Node* node, int cmd, const AddrVec_t& addr_vec, Clk_t clk)>;
 template<class T>

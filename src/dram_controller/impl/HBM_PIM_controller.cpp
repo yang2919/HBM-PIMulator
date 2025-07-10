@@ -44,6 +44,7 @@ private:
     bool is_reg_RW_mode = false;
 
     std::map<int, std::string> ISR_to_str;
+    std::map<int, std::string> Code_to_str;
 
 public:
     void init() override {
@@ -77,13 +78,13 @@ public:
                                   m_channel_id,
                                   type == Request::Type::Read ? "Read": "Write"));
         }
-        
+        /*
         for (int opcode = 0; opcode <= Opcode::TMOD_P; opcode++) {
             s_num_PIM_cycles[opcode] = 0;
             register_stat(s_num_PIM_cycles[opcode])
                 .name(fmt::format("CH{}_PIM_{}_cycles", m_channel_id, ISR_to_str[opcode]))
                 .desc(fmt::format("total number of PIM {} cycles", ISR_to_str[opcode]));
-        }
+        }*/
 
         for (int command_id = 0; command_id < m_dram->m_commands.size(); command_id++) {
             s_num_commands[command_id] = 0;
@@ -202,9 +203,9 @@ public:
             req_it->issue = m_clk - 1;
             m_dram->issue_command(req_it->command, req_it->addr_vec);
             s_num_commands[req_it->command] += 1;
+            std::cout<<"Commands : "<<Code_to_str[req_it->command]<<" Clk : "<<m_clk<<std::endl;
             if (req_it->command == req_it->final_command) {
-                int latency = m_dram->m_command_latencies(req_it->command);
-                std::cout<<"Command : "<<req_it->operation_id<<" latency : "<<latency<<std::endl;
+                int latency = m_dram->m_command_latencies(req_it->command);                
                 assert(latency > 0);
                 req_it->depart = m_clk + latency;
                 if (req_it->type_id == Request::Type::Read) {
@@ -415,6 +416,10 @@ public:
         ISR_to_str[Opcode::MAC] = "MAC";
         ISR_to_str[Opcode::MAD] = "MAD";
         ISR_to_str[Opcode::MUL] = "MUL";
+        ISR_to_str[Opcode::ADDRF] = "ADDRF";
+        ISR_to_str[Opcode::MACRF] = "MACRF";
+        ISR_to_str[Opcode::MADRF] = "MADRF";
+        ISR_to_str[Opcode::MULRF] = "MULRF";
         ISR_to_str[Opcode::JUMP] = "JUMP";
         ISR_to_str[Opcode::EXIT] = "EXIT";
         ISR_to_str[Opcode::NOP] = "NOP";
@@ -422,6 +427,27 @@ public:
         ISR_to_str[Opcode::MOV] = "MOV";
         ISR_to_str[Opcode::TMOD_A] = "TMOD_A";
         ISR_to_str[Opcode::TMOD_P] = "TMOD_P";
+
+        Code_to_str[0] = "ACT";
+        Code_to_str[1] = "ACTA";
+        Code_to_str[2] = "PRE";
+        Code_to_str[3] = "PREA";
+        Code_to_str[4] = "RD";
+        Code_to_str[5] = "WR";
+        Code_to_str[6] = "RDA";
+        Code_to_str[7] = "WRA";
+        Code_to_str[8] = "REFab";
+        Code_to_str[9] = "REFsb";
+        Code_to_str[10] = "MAC";
+        Code_to_str[11] = "MUL";
+        Code_to_str[12] = "ADD";
+        Code_to_str[13] = "MACRF";
+        Code_to_str[14] = "MULRF";
+        Code_to_str[15] = "ADDRF";
+        Code_to_str[16] = "DATA";
+        Code_to_str[17] = "CON";
+        Code_to_str[18] = "TMOD";
+        Code_to_str[19] = "RWR";
     }
 };
 
