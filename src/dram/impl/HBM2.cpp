@@ -386,7 +386,7 @@ class HBM2 : public IDRAM, public Implementation {
 
           // "Activate all banks before pim operation"
           {.level = "channel", .preceding = {"ACTA"}, .following = {"MAC", "MUL", "ADD", "DATA"}, .latency = V("nRRDS")*4*4},
-          {.level = "channel", .preceding = {"ACTA"}, .following = {"MAC", "MUL", "ADD", "DATA"}, .latency = V("nFAW")*4},
+          {.level = "channel", .preceding = {"ACTA"}, .following = {"MAC", "MUL", "ADD", "DATA"}, .latency = V("nFAW")*3 + V("nRRDS")*3 + V("nRCDRD")},
 
 
           /*** Pseudo Channel (Table 3 — Array Access Timings Counted Individually Per Pseudo Channel, JESD-235C) ***/ 
