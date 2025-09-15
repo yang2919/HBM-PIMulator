@@ -16,9 +16,9 @@ class PIM(Bank):
         self.burst_length = args.burst_length
         self.grfs = 0 if args.only_trace else torch.zeros(torch.Size([self.PIM_grf, self.burst_length]))
         self.srfs = 0 if args.only_trace else torch.zeros(torch.Size([self.burst_length]))
-        self.bank = {}
-        self.bank[0] = Bank(args)
-        self.bank[1] = Bank(args)
+        self.bank = []
+        self.bank.append(Bank(args)) # Even bank
+        self.bank.append(Bank(args)) # Odd bank
 
 class BankGroup(PIM):
     def __init__(self, args):
@@ -93,30 +93,30 @@ class Memory():
                 self.file.write("R {}\n".format(self.address(hbm_index, channel_index, bankgroup_index, bank_index, row_index, col_index)))
         return self.pim_device[hbm_index].HBM[channel_index].channel[bankgroup_index].bankgroup[bank_index].arrays[row_index][col_index]
 
-    def PIM_FILL(self, hbm_index, channel_index, bank_index, row_index, col_index, dst_index, op_trace):
+    def PIM_FILL(self, hbm_index, channel_index, bank_op, row_index, col_index, dst_index, op_trace):
         if op_trace and hbm_index == 0:
             self.file.write("PIM FILL {} BANK,{},{} GRF,{}\n".format(channel_index, row_index, col_index, dst_index))
         for bg in range(self.num_bankgroups):
             for _pim in range(self.num_banks // 2):
-                A = self.load_from_DRAM_single_bank(hbm_index, channel_index, bg, _pim + bank_index, row_index, col_index, self.burst_length, False)
+                A = self.load_from_DRAM_single_bank(hbm_index, channel_index, bg, 2*_pim + bank_op, row_index, col_index, self.burst_length, False)
                 self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[dst_index] = A
 
-    def PIM_MOVE(self, hbm_index, channel_index, bank_index, src_index, row_index, col_index, op_trace):
+    def PIM_MOVE(self, hbm_index, channel_index, bank_op, src_index, row_index, col_index, op_trace):
         if op_trace and hbm_index == 0:
             self.file.write("PIM MOVE {} GRF,{} BANK,{},{} \n".format(channel_index, src_index, row_index, col_index))
         for bg in range(self.num_bankgroups):
             for _pim in range(self.num_banks // 2):
                 A = self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[src_index]
-                self.store_to_DRAM_single_bank(hbm_index, channel_index, bg, _pim + bank_index, row_index, col_index, self.burst_length, A, False)
+                self.store_to_DRAM_single_bank(hbm_index, channel_index, bg, 2*_pim + bank_op, row_index, col_index, self.burst_length, A, False)
 
-    def PIM_MAC_RD_BANK(self, hbm_index, channel_index, bank_index, row_index, col_index, src_index, dst_index, op_trace):
+    def PIM_MAC_RD_BANK(self, hbm_index, channel_index, bank_op, row_index, col_index, src_index, dst_index, op_trace):
         if op_trace and hbm_index == 0:
             self.file.write("PIM MAC {} BANK,{},{} GRF,{} GRF,{}\n".format(channel_index, row_index, col_index, src_index, dst_index))
         for bg in range(self.num_bankgroups):
             for _pim in range(self.num_banks // 2):
-                A = self.load_from_DRAM_single_bank(hbm_index, channel_index, bg, _pim + bank_index, row_index, col_index, self.burst_length, False)
+                A = self.load_from_DRAM_single_bank(hbm_index, channel_index, bg, 2*_pim + bank_op, row_index, col_index, self.burst_length, False)
                 B = self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[src_index]
-                self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[dst_index] += self.MAC(A, B, False)
+                self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[dst_index] += self.MUL(A, B, False)
 
     def PIM_MAC_ONLY_RF(self, hbm_index, channel_index, src1_index, src2_index, dst_index, op_trace):
         if op_trace and hbm_index == 0:
@@ -125,13 +125,49 @@ class Memory():
             for _pim in range(self.num_banks // 2):
                 A = self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[src1_index]
                 B = self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[src2_index]
-                self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[dst_index] += self.MAC(A, B, False)
+                self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[dst_index] += self.MUL(A, B, False)
+
+    def PIM_MUL_RD_BANK(self, hbm_index, channel_index, bank_op, row_index, col_index, src_index, dst_index, op_trace):
+        if op_trace and hbm_index == 0:
+            self.file.write("PIM MAC {} BANK,{},{} GRF,{} GRF,{}\n".format(channel_index, row_index, col_index, src_index, dst_index))
+        for bg in range(self.num_bankgroups):
+            for _pim in range(self.num_banks // 2):
+                A = self.load_from_DRAM_single_bank(hbm_index, channel_index, bg, 2*_pim + bank_op, row_index, col_index, self.burst_length, False)
+                B = self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[src_index]
+                self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[dst_index] = self.MUL(A, B, False)
+
+    def PIM_MUL_ONLY_RF(self, hbm_index, channel_index, src1_index, src2_index, dst_index, op_trace):
+        if op_trace and hbm_index == 0:
+            self.file.write("PIM MAC {} GRF,{} GRF,{} GRF,{}\n".format(channel_index, src1_index, src2_index, dst_index))
+        for bg in range(self.num_bankgroups):
+            for _pim in range(self.num_banks // 2):
+                A = self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[src1_index]
+                B = self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[src2_index]
+                self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[dst_index] = self.MUL(A, B, False)
+    
+    def PIM_ADD_RD_BANK(self, hbm_index, channel_index, bank_op, row_index, col_index, src_index, dst_index, op_trace):
+        if op_trace and hbm_index == 0:
+            self.file.write("PIM MAC {} BANK,{},{} GRF,{} GRF,{}\n".format(channel_index, row_index, col_index, src_index, dst_index))
+        for bg in range(self.num_bankgroups):
+            for _pim in range(self.num_banks // 2):
+                A = self.load_from_DRAM_single_bank(hbm_index, channel_index, bg, 2*_pim + bank_op, row_index, col_index, self.burst_length, False)
+                B = self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[src_index]
+                self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[dst_index] = self.ADD(A, B, False)
+
+    def PIM_ADD_ONLY_RF(self, hbm_index, channel_index, src1_index, src2_index, dst_index, op_trace):
+        if op_trace and hbm_index == 0:
+            self.file.write("PIM MAC {} GRF,{} GRF,{} GRF,{}\n".format(channel_index, src1_index, src2_index, dst_index))
+        for bg in range(self.num_bankgroups):
+            for _pim in range(self.num_banks // 2):
+                A = self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[src1_index]
+                B = self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[src2_index]
+                self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[dst_index] = self.ADD(A, B, False)
 
     def ADD(self, A, B, profile: bool):
         result = A + B
         return result
 
-    def MAC(self, A, B, profile: bool):
+    def MUL(self, A, B, profile: bool):
         result = A * B
         return result
     

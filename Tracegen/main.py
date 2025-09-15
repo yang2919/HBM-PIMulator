@@ -10,17 +10,17 @@ def build_args():
     parser = argparse.ArgumentParser(description="PIM Memory simulator arguments")
 
     # DRAM / HBM 구성
-    parser.add_argument("--DRAM_column", type=int, default=16)
-    parser.add_argument("--DRAM_row", type=int, default=128)
+    parser.add_argument("--DRAM_column", type=int, default=32)
+    parser.add_argument("--DRAM_row", type=int, default=8192)
     parser.add_argument("--burst_length", type=int, default=16)
 
     parser.add_argument("--num_banks", type=int, default=4)
     parser.add_argument("--num_groups", type=int, default=4)         # = BankGroup 개수
     parser.add_argument("--num_bankgroups", type=int, default=4)     # 코드 호환용(=num_groups)
-    parser.add_argument("--num_channels", type=int, default=1)
+    parser.add_argument("--num_channels", type=int, default=2)
 
     # PIM 레지스터 파일
-    parser.add_argument("--PIM_grf", type=int, default=8)
+    parser.add_argument("--PIM_grf", type=int, default=16)
     parser.add_argument("--PIM_srf", type=int, default=4)
 
     # 실행/트레이스 옵션
@@ -85,12 +85,7 @@ def main():
 
     # 공유 전략(사용자 코드 상단과 동일)
     torch.multiprocessing.set_sharing_strategy('file_system')
-    
     args = build_args()
-
-    # 여기까지가 "argument parsing"
-    # ------------------------------
-    # 아래에서 Memory 객체를 생성합니다.
     mem = System(args)
     
     print("Memory 객체 생성 완료!")
@@ -100,41 +95,24 @@ def main():
     input2 = []
     for _ in range(32):
         input1.append(generate_random_fp16_tensor(16))
-    for _ in range(32 * mem.num_bankgroups * mem.num_banks):
+    for _ in range(32 * mem.num_bankgroups * (mem.num_banks//2) * 2):
         input2.append(generate_random_fp16_tensor(16))
-    in1_bo = mem.create_BO(len(input1), 0, 0, [0, 0], False)
-    in2_bo = mem.create_BO(len(input2), 0, 0, [1, 0], True)
-    out_bo = mem.create_BO(mem.num_bankgroups * mem.num_banks, 0, 0, [2, 0], True)
+    in1_bo = mem.create_BO(len(input1), [0], [0, 1], [0, 0], True, False)
+    in2_bo = mem.create_BO(len(input2), [0], [0, 1], [1, 0], True, True)
+    out_bo = mem.create_BO(mem.num_channels * mem.num_bankgroups * mem.num_banks, [0], [0, 1], [2, 0], True, True)
     mem.broadcast_to_DRAM_all_bank(in1_bo, input1, True)
-    mem.scatter_to_DRAM_all_bank(in2_bo, input2, True)
-    mem.GEMV_BO_PRE(in1_bo, in2_bo, out_bo)
-    out = mem.gather_from_DRAM_all_bank(out_bo, True)
+    mem.scatter_to_DRAM_all_bank(in2_bo, input2, False)
+    out = mem.GEMV_BO_PRE(in1_bo, in2_bo, out_bo)
     print("----------------------------------------------")
     for iter in out:
-        print(iter.sum(), end=' ')
+        print(iter.sum())
     print("----------------------------------------------")
-    for i in range(mem.num_bankgroups * mem.num_banks):
-        output = torch.zeros(16)
-        for j in range(32):
-            output += input1[j] * input2[i * 32 + j]
-        print(output.sum())
-    # print(f"DRAM_row={args.DRAM_row}, DRAM_column={args.DRAM_column}, "
-    #       f"burst_length={args.burst_length}, num_banks={args.num_banks}, "
-    #       f"num_groups={args.num_groups}, num_channels={args.num_channels}")
-    # # 필요 시 이후 로직 추가
-    # fill_all_banks_with_random(mem, 0, 0)
-    # fill_all_banks_with_random(mem, 0, 1)
-    # print("Random 데이터 저장 완료")
-    # mem.PIM_FILL(0, 0, 0, 0, 0, 0, True)
-    # mem.PIM_MAC_RD_BANK(0, 0, 0, 0, 1, 0, 1, True)
-    # mem.PIM_MOVE(0, 0, 0, 1, 0, 2, True)
-    # A = mem.load_from_DRAM_single_bank(0, 0, 0, 0, 0, 0, mem.burst_length, False)
-    # B = mem.load_from_DRAM_single_bank(0, 0, 0, 0, 0, 1, mem.burst_length, False)
-    # print((A * B))
 
-    # print(mem.load_from_DRAM_single_bank(0, 0, 0, 0, 0, 2, mem.burst_length, False))
+    in1 = torch.cat(input1)
+    for i in range(0, len(input2), 32):
+        in2 = torch.cat(input2[i:i+32])
+        print((in1*in2).sum())
 
-    # trace 파일 핸들 정리(생성 직후 종료한다면)
     try:
         mem.file.close()
     except Exception:
