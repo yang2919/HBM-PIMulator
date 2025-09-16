@@ -5,6 +5,7 @@ import torch
 # 사용자가 제공한 클래스들이 같은 파일에 없다면 적절히 import 경로를 수정하세요.
 # 예: from pim_mem import Memory
 from function import System 
+from Mixtral import ModelMixtral
 
 def build_args():
     parser = argparse.ArgumentParser(description="PIM Memory simulator arguments")
@@ -22,6 +23,12 @@ def build_args():
     # PIM 레지스터 파일
     parser.add_argument("--PIM_grf", type=int, default=16)
     parser.add_argument("--PIM_srf", type=int, default=4)
+
+    # Model hyper parameters
+    parser.add_argument("--dim", type=int, default=4096)
+    parser.add_argument("--dim_expert", type=int, default=14436)
+    parser.add_argument("--n_expert", type=int, default=8)
+    parser.add_argument("--top_k", type=int, default=2)
 
     # 실행/트레이스 옵션
     parser.add_argument("--only_trace", action="store_true",
@@ -76,6 +83,60 @@ def fill_all_banks_with_random(mem, row=0, col=0):
                         op_trace=mem.op_trace
                     )
 
+def generate_model_dic(model : str="Mixtral"):
+    model = {
+        "Mixtral" : {
+            "x1" : [generate_random_fp16_tensor(16) for _ in range(4096 // 16)],
+            "w1" : {
+                f"expert{i}": [generate_random_fp16_tensor(16) for _ in range(4096 * 14336 // 16)] for i in range(8)
+            },
+            "w2" : {
+                f"expert{i}": [generate_random_fp16_tensor(16) for _ in range(4096 * 14336 // 16)] for i in range(8)
+            }
+        }
+
+    }
+    return model[str]
+
+def compare_lists(list1, list2, tol: float = 0.1) -> bool:
+    results = []
+    for t1, t2 in zip(list1, list2):
+        results.append(abs(t1.sum() - t2.sum()) < tol)
+    
+    return all(results)
+
+def GEMV_example(args):
+    mem = System(args)
+    
+    print("Memory 객체 생성 완료!")
+
+    # Example GEMV
+    input1 = []
+    input2 = []
+    input1 = generate_random_fp16_tensor(16 * 32)
+    input2 = generate_random_fp16_tensor(16 * 32 * mem.num_bankgroups * (mem.num_banks//2) * 8)
+
+    in1_bo = mem.create_BO(len(input1), [0], [0, 1], [0, 0], True, False)
+    in2_bo = mem.create_BO(len(input2), [0], [0, 1], [1, 0], True, True)
+    out_bo = mem.create_BO(len(input2) // len(input1) * 16, [0], [0, 1], [2, 0], True, True)
+
+    mem.broadcast_to_DRAM_all_bank(in1_bo, input1, True)
+    mem.scatter_to_DRAM_all_bank(in2_bo, input2, False)
+    out = mem.GEMV_BO_PRE(in1_bo, in2_bo, out_bo)
+    torch.set_printoptions(threshold=10) 
+    print(out.sum(dim=1), out.shape)
+    print("----------------------------------------------")
+    in2 = input2.view(-1, len(input1))
+    output = input1 * in2
+    output = output.sum(dim = 1)
+    print(output, output.shape)
+    print("----------------------------------------------")
+
+    try:
+        mem.file.close()
+    except Exception:
+        pass
+
 def main():
     # macOS/Windows 호환을 위해 spawn 권장
     try:
@@ -86,37 +147,13 @@ def main():
     # 공유 전략(사용자 코드 상단과 동일)
     torch.multiprocessing.set_sharing_strategy('file_system')
     args = build_args()
-    mem = System(args)
-    
-    print("Memory 객체 생성 완료!")
+    GEMV_example(args)
+    # model_dic = generate_model_dic()
 
-    # Example GEMV
-    input1 = []
-    input2 = []
-    for _ in range(32):
-        input1.append(generate_random_fp16_tensor(16))
-    for _ in range(32 * mem.num_bankgroups * (mem.num_banks//2) * 2):
-        input2.append(generate_random_fp16_tensor(16))
-    in1_bo = mem.create_BO(len(input1), [0], [0, 1], [0, 0], True, False)
-    in2_bo = mem.create_BO(len(input2), [0], [0, 1], [1, 0], True, True)
-    out_bo = mem.create_BO(mem.num_channels * mem.num_bankgroups * mem.num_banks, [0], [0, 1], [2, 0], True, True)
-    mem.broadcast_to_DRAM_all_bank(in1_bo, input1, True)
-    mem.scatter_to_DRAM_all_bank(in2_bo, input2, False)
-    out = mem.GEMV_BO_PRE(in1_bo, in2_bo, out_bo)
-    print("----------------------------------------------")
-    for iter in out:
-        print(iter.sum())
-    print("----------------------------------------------")
+    # model = ModelMixtral(model_dic, args)
+    # model.set_mapping()
 
-    in1 = torch.cat(input1)
-    for i in range(0, len(input2), 32):
-        in2 = torch.cat(input2[i:i+32])
-        print((in1*in2).sum())
 
-    try:
-        mem.file.close()
-    except Exception:
-        pass
 
 if __name__ == "__main__":
     main()
