@@ -18,7 +18,7 @@ def build_args():
     parser.add_argument("--num_banks", type=int, default=4)
     parser.add_argument("--num_groups", type=int, default=4)         # = BankGroup 개수
     parser.add_argument("--num_bankgroups", type=int, default=4)     # 코드 호환용(=num_groups)
-    parser.add_argument("--num_channels", type=int, default=2)
+    parser.add_argument("--num_channels", type=int, default=16)
 
     # PIM 레지스터 파일
     parser.add_argument("--PIM_grf", type=int, default=16)
@@ -26,7 +26,7 @@ def build_args():
 
     # Model hyper parameters
     parser.add_argument("--dim", type=int, default=4096)
-    parser.add_argument("--dim_expert", type=int, default=14436)
+    parser.add_argument("--dim_expert", type=int, default=14336)
     parser.add_argument("--n_expert", type=int, default=8)
     parser.add_argument("--top_k", type=int, default=2)
 
@@ -84,19 +84,19 @@ def fill_all_banks_with_random(mem, row=0, col=0):
                     )
 
 def generate_model_dic(model : str="Mixtral"):
-    model = {
+    model_dic = {
         "Mixtral" : {
-            "x1" : [generate_random_fp16_tensor(16) for _ in range(4096 // 16)],
+            "x1" : torch.zeros(4096),
             "w1" : {
-                f"expert{i}": [generate_random_fp16_tensor(16) for _ in range(4096 * 14336 // 16)] for i in range(8)
+                f"expert{i}": torch.zeros(4096 * 14336) for i in range(8)
             },
             "w2" : {
-                f"expert{i}": [generate_random_fp16_tensor(16) for _ in range(4096 * 14336 // 16)] for i in range(8)
+                f"expert{i}": torch.zeros(4096 * 14336) for i in range(8)
             }
         }
 
     }
-    return model[str]
+    return model_dic[model]
 
 def compare_lists(list1, list2, tol: float = 0.1) -> bool:
     results = []
@@ -122,7 +122,7 @@ def GEMV_example(args):
 
     mem.broadcast_to_DRAM_all_bank(in1_bo, input1, True)
     mem.scatter_to_DRAM_all_bank(in2_bo, input2, False)
-    out = mem.GEMV_BO_PRE(in1_bo, in2_bo, out_bo)
+    out = mem.GEMV_BO(in1_bo, in2_bo, out_bo)
     torch.set_printoptions(threshold=10) 
     print(out.sum(dim=1), out.shape)
     print("----------------------------------------------")
@@ -147,13 +147,14 @@ def main():
     # 공유 전략(사용자 코드 상단과 동일)
     torch.multiprocessing.set_sharing_strategy('file_system')
     args = build_args()
-    GEMV_example(args)
-    # model_dic = generate_model_dic()
+    #GEMV_example(args)
+    model_dic = generate_model_dic()
 
-    # model = ModelMixtral(model_dic, args)
-    # model.set_mapping()
-
-
+    model = ModelMixtral(model_dic, args)
+    model.set_mapping()
+    model.weight_mapping()
+    model.gating()
+    model.FFN_PIM()
 
 if __name__ == "__main__":
     main()
