@@ -86,15 +86,32 @@ def fill_all_banks_with_random(mem, row=0, col=0):
 def generate_model_dic(model : str="Mixtral"):
     model_dic = {
         "Mixtral" : {
-            "x1" : torch.zeros(4096),
+            "x1" : torch.randn(4096, dtype=torch.float16),
             "w1" : {
-                f"expert{i}": torch.zeros(4096 * 14336) for i in range(8)
+                f"expert{i}": torch.randn(4096 * 14336, dtype=torch.float16) for i in range(8)
             },
             "w2" : {
-                f"expert{i}": torch.zeros(4096 * 14336) for i in range(8)
+                f"expert{i}": torch.randn(4096 * 14336, dtype=torch.float16) for i in range(8)
+            }
+        },
+        # "Mixtral" : {
+        #     "x1" : torch.zeros(4096, dtype=torch.float16),
+        #     "w1" : {
+        #         f"expert{i}": torch.zeros(4096 * 14336, dtype=torch.float16) for i in range(8)
+        #     },
+        #     "w2" : {
+        #         f"expert{i}": torch.zeros(4096 * 14336, dtype=torch.float16) for i in range(8)
+        #     }
+        # },
+        "Deepseek-MoE-16B" : {
+            "x1" : torch.randn(2048, dtype=torch.float16),
+            "w1" : {
+                f"expert{i}": torch.randn(2048 * 1408, dtype=torch.float16) for i in range(66)
+            },
+            "w2" : {
+                f"expert{i}": torch.randn(1408 * 2048, dtype=torch.float16) for i in range(66)
             }
         }
-
     }
     return model_dic[model]
 
@@ -116,9 +133,9 @@ def GEMV_example(args):
     input1 = generate_random_fp16_tensor(16 * 32)
     input2 = generate_random_fp16_tensor(16 * 32 * mem.num_bankgroups * (mem.num_banks//2) * 8)
 
-    in1_bo = mem.create_BO(len(input1), [0], [0, 1], [0, 0], True, False)
-    in2_bo = mem.create_BO(len(input2), [0], [0, 1], [1, 0], True, True)
-    out_bo = mem.create_BO(len(input2) // len(input1) * 16, [0], [0, 1], [2, 0], True, True)
+    in1_bo = mem.create_BO(len(input1), [0], [0, 1], [0, 0], False)
+    in2_bo = mem.create_BO(len(input2), [0], [0, 1], [1, 0], True)
+    out_bo = mem.create_BO(len(input2) // len(input1) * 16, [0], [0, 1], [2, 0], True)
 
     mem.broadcast_to_DRAM_all_bank(in1_bo, input1, True)
     mem.scatter_to_DRAM_all_bank(in2_bo, input2, False)
@@ -148,13 +165,19 @@ def main():
     torch.multiprocessing.set_sharing_strategy('file_system')
     args = build_args()
     #GEMV_example(args)
+    torch.manual_seed(1)
     model_dic = generate_model_dic()
+    print("Parameter generation finished...")
+
+    torch.set_printoptions(threshold=10) 
+    
 
     model = ModelMixtral(model_dic, args)
     model.set_mapping()
-    model.weight_mapping()
+    model.weight_mapping(False)
     model.gating()
-    model.FFN_PIM()
+    #model.FFN_ref()
+    model.FFN_PIM(False)
 
 if __name__ == "__main__":
     main()

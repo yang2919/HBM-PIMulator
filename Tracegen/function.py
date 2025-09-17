@@ -2,13 +2,12 @@ import torch
 from pim import Memory
 
 class Buffer():
-    def __init__(self, size: int, hbm_index: list, channel_index: list, start_index: list, final_index: list, bank_op: bool , store_type: bool):
+    def __init__(self, size: int, hbm_index: list, channel_index: list, start_index: list, final_index: list, store_type: bool):
         self.size = size
         self.hbm_index = hbm_index
         self.channel_index = channel_index
         self.start_index = start_index
         self.final_index = final_index
-        self.bank_op = bank_op # true = even, false = odd
         self.store_type = store_type # true = scatter, false = broadcast
         self.cols_per_bank = size
 
@@ -21,7 +20,7 @@ class System(Memory):
     def __init__(self, args):
         super().__init__(args)
 
-    def create_BO(self, size: int, hbm_index: list, channel_index: list, start_index: list, bank_op: bool, store_type: bool):
+    def create_BO(self, size: int, hbm_index: list, channel_index: list, start_index: list, store_type: bool):
         start_idx = start_index[0] * self.DRAM_column + start_index[1]
         if store_type == True: # Scatter, size per bank
             size = size // (len(hbm_index) * len(channel_index) * self.num_bankgroups * (self.num_banks // 2))
@@ -31,7 +30,7 @@ class System(Memory):
         
         final_index = [final_idx // self.DRAM_column, final_idx % self.DRAM_column]
         #print(final_index)
-        return Buffer(size, hbm_index, channel_index, start_index, final_index, bank_op, store_type)
+        return Buffer(size, hbm_index, channel_index, start_index, final_index, store_type)
 
     def broadcast_to_DRAM_all_bank(self, bo: Buffer, data: torch.tensor, op_trace: bool):
         chunks = data.view(bo.size, 16)
@@ -68,7 +67,7 @@ class System(Memory):
                     self.store_to_DRAM_single_bank(hbm, ch, bg, bk, row, col, 2, p_data[idx].contiguous(), op_trace)
                 i += chunk_size
 
-    def gather_from_DRAM_all_bank(self, bo, op_trace):
+    def gather_from_DRAM_all_bank(self, bo: Buffer, op_trace: bool):
         data = []
         for hbm in bo.hbm_index:
             for ch in bo.channel_index:
