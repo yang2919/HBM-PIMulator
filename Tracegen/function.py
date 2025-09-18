@@ -44,7 +44,7 @@ class System(Memory):
                         _bk += 1
                     for hbm in bo.hbm_index:
                         for ch in bo.channel_index:
-                            self.store_to_DRAM_single_bank(hbm, ch, bg, bk, row, col, 2, chunks[idx].contiguous(), op_trace)
+                            self.store_to_DRAM_single_bank(hbm, ch, bg, _bk, row, col, 2, chunks[idx].contiguous(), op_trace)
 
     def scatter_to_DRAM_all_bank(self, bo: Buffer, data: torch.tensor, op_trace: bool):
         num_iters = len(bo.hbm_index) * len(bo.channel_index)
@@ -79,7 +79,7 @@ class System(Memory):
                             if row >= self.DRAM_row:
                                 row %= self.DRAM_row
                                 _bk += 1
-                            data.append(self.load_from_DRAM_single_bank(hbm, ch, bg, bk, row, col, 2, op_trace))
+                            data.append(self.load_from_DRAM_single_bank(hbm, ch, bg, _bk, row, col, 2, op_trace))
         return torch.stack(data)
     
     def GEMV_BO(self, in_bo1: Buffer, in_bo2: Buffer, out_bo: Buffer, op_trace: bool):

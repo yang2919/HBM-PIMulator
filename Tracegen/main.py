@@ -169,15 +169,14 @@ def main():
     model_dic = generate_model_dic()
     print("Parameter generation finished...")
 
-    #torch.set_printoptions(threshold=10) 
-    
+    torch.set_printoptions(threshold=10)
 
     model = ModelMixtral(model_dic, args)
     model.set_mapping()
     model.weight_mapping(False)
     model.gating()
     model.FFN_ref()
-    #model.FFN_PIM(False)
+    model.FFN_PIM(False)
 
 if __name__ == "__main__":
     main()
