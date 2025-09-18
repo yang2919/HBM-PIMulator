@@ -67,7 +67,7 @@ class System(Memory):
                     self.store_to_DRAM_single_bank(hbm, ch, bg, bk, row, col, 2, p_data[idx].contiguous(), op_trace)
                 i += chunk_size
 
-    def gather_from_DRAM_all_bank(self, bo: Buffer, op_trace: bool):
+    def gather_from_DRAM_all_bank(self, bo, op_trace):
         data = []
         for hbm in bo.hbm_index:
             for ch in bo.channel_index:
