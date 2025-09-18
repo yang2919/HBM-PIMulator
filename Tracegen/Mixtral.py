@@ -59,7 +59,6 @@ class ModelMixtral(System):
     def weight_mapping(self, op_trace):
         for w1_bo, w1 in zip(self.w1_bo, self.w1):
             self.scatter_to_DRAM_all_bank(w1_bo, w1, op_trace)
-
         # for w2_bo, w2 in zip(self.w2_bo, self.w2):
         #     self.scatter_to_DRAM_all_bank(w2_bo, w2, op_trace)
 
@@ -74,6 +73,7 @@ class ModelMixtral(System):
             self.o1_ref.append(self.x1 * self.w1[self.top_experts[i]].view(-1, self.x1.shape[0]))
 
         print(self.o1_ref[0].sum(dim=1)[-128: -1], self.o1_ref[0].shape)
+        return self.o1_ref[0].sum(dim=1)
 
 
     def FFN_PIM(self, op_trace):
@@ -89,6 +89,7 @@ class ModelMixtral(System):
         for i in range(self.top_k):
             self.o1.append(self.gather_from_DRAM_all_bank(self.o1_bo[i], op_trace))
         print(self.o1[0].sum(dim=1)[-128: -1], self.o1[0].shape)
+        return self.o1[0].sum(dim=1)
 
 '''
         self.o1_t = self.o1[0].sum(dim=1)

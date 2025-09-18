@@ -100,7 +100,6 @@ class System(Memory):
                         bk = 1
                     for hbm in in_bo1.hbm_index:
                         for ch in in_bo1.channel_index:
-                            
                             self.PIM_FILL(hbm, ch, bk, row, col, rf, op_trace)
                 for rf in range(num_rfs):
                     for rf_col in range(size_cur_col):

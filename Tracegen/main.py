@@ -122,6 +122,37 @@ def compare_lists(list1, list2, tol: float = 0.1) -> bool:
     
     return all(results)
 
+import torch
+
+def save_diff_indices(t1: torch.Tensor, t2: torch.Tensor, filename="diff.txt", threshold=0.1):
+    """
+    두 텐서를 원소별로 비교하여 오차가 threshold 이상인 index를 파일에 저장
+    
+    Args:
+        t1, t2: 같은 shape의 torch.Tensor
+        filename: 저장할 파일명
+        threshold: 허용 오차
+    """
+    if t1.shape != t2.shape:
+        raise ValueError(f"Shape mismatch: {t1.shape} vs {t2.shape}")
+
+    # 절대 오차
+    diff = (t1 - t2).abs()
+
+    # threshold 이상인 위치
+    mask = diff >= threshold
+    indices = mask.nonzero(as_tuple=False)
+
+    with open(filename, "w") as f:
+        for idx in indices:
+            idx_tuple = tuple(idx.tolist())
+            f.write(
+                f"Index={idx_tuple}, t1={t1[idx_tuple].item()}, t2={t2[idx_tuple].item()}, diff={diff[idx_tuple].item()}\n"
+            )
+
+    print(f"총 {indices.shape[0]}개 차이를 {filename}에 저장했습니다.")
+
+
 def GEMV_example(args):
     mem = System(args)
     
@@ -170,14 +201,14 @@ def main():
     print("Parameter generation finished...")
 
     torch.set_printoptions(threshold=10)
-    torch.set_printoptions(threshold=float("inf"))
+    #torch.set_printoptions(threshold=float("inf"))
 
     model = ModelMixtral(model_dic, args)
     model.set_mapping()
     model.weight_mapping(False)
     model.gating()
     model.FFN_ref()
-    model.FFN_PIM(False)
+    model.FFN_PIM(True)
 
 if __name__ == "__main__":
     main()
