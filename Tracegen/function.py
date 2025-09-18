@@ -89,7 +89,8 @@ class System(Memory):
 
         idx_cur_col = 0
         while idx_cur_col < num_cols_per_bank:
-            size_cur_col = min(num_rfs_out, num_cols_per_bank - idx_cur_col) 
+            size_cur_col = min(num_rfs_out, num_cols_per_bank - idx_cur_col)
+            init = False
             for iter in range(in_bo1.size // num_rfs):
                 for rf in range(num_rfs):
                     row, col = in_bo1.get_index(self.DRAM_column, iter * num_rfs + rf)
@@ -103,14 +104,18 @@ class System(Memory):
                             self.PIM_FILL(hbm, ch, bk, row, col, rf, op_trace)
                 for rf in range(num_rfs):
                     for rf_col in range(size_cur_col):
-                        row, col = in_bo2.get_index(self.DRAM_column, iter * num_rfs + rf + rf_col * in_bo1.size)
+                        row, col = in_bo2.get_index(self.DRAM_column, iter * num_rfs + rf + (idx_cur_col + rf_col) * in_bo1.size)
                         bk = 0
                         if row >= self.DRAM_row:
                             row %= self.DRAM_row
                             bk = 1
                         for hbm in in_bo2.hbm_index:
                             for ch in in_bo2.channel_index:
-                                self.PIM_MAC_RD_BANK(hbm, ch, bk, row, col, rf, num_rfs + rf_col, op_trace)
+                                if init == False:
+                                    self.PIM_MUL_RD_BANK(hbm, ch, bk, row, col, rf, num_rfs + rf_col, op_trace)
+                                else:
+                                    self.PIM_MAC_RD_BANK(hbm, ch, bk, row, col, rf, num_rfs + rf_col, op_trace)
+                    init = True
 
             for i in range(size_cur_col):
                 out_idx = idx_cur_col + i

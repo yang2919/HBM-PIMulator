@@ -73,7 +73,7 @@ class ModelMixtral(System):
         for i in range(self.top_k):
             self.o1_ref.append(self.x1 * self.w1[self.top_experts[i]].view(-1, self.x1.shape[0]))
 
-        print(self.o1_ref[0].sum(dim=1)[14001:-1], self.o1_ref[0].shape)
+        print(self.o1_ref[0].sum(dim=1)[-128: -1], self.o1_ref[0].shape)
 
 
     def FFN_PIM(self, op_trace):
@@ -88,7 +88,7 @@ class ModelMixtral(System):
         self.o1 = []
         for i in range(self.top_k):
             self.o1.append(self.gather_from_DRAM_all_bank(self.o1_bo[i], op_trace))
-        print(self.o1[0].sum(dim=1)[14001:-1], self.o1[0].shape)
+        print(self.o1[0].sum(dim=1)[-128: -1], self.o1[0].shape)
 
 '''
         self.o1_t = self.o1[0].sum(dim=1)

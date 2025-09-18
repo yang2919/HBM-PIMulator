@@ -170,6 +170,7 @@ def main():
     print("Parameter generation finished...")
 
     torch.set_printoptions(threshold=10)
+    torch.set_printoptions(threshold=float("inf"))
 
     model = ModelMixtral(model_dic, args)
     model.set_mapping()
