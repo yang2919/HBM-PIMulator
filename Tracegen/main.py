@@ -25,8 +25,8 @@ def build_args():
     parser.add_argument("--PIM_srf", type=int, default=4)
 
     # Model hyper parameters
-    parser.add_argument("--dim", type=int, default=4096)
-    parser.add_argument("--dim_expert", type=int, default=14336)
+    parser.add_argument("--dim", type=int, default=2048)
+    parser.add_argument("--dim_expert", type=int, default=8192)
     parser.add_argument("--n_expert", type=int, default=8)
     parser.add_argument("--top_k", type=int, default=2)
 
@@ -86,12 +86,12 @@ def fill_all_banks_with_random(mem, row=0, col=0):
 def generate_model_dic(model : str="Mixtral"):
     model_dic = {
         "Mixtral" : {
-            "x1" : torch.randn(4096, dtype=torch.float16),
+            "x1" : torch.randn(2048, dtype=torch.float16),
             "w1" : {
-                f"expert{i}": torch.randn(4096 * 14336, dtype=torch.float16) for i in range(8)
+                f"expert{i}": torch.randn(2048 * 8192, dtype=torch.float16) for i in range(8)
             },
             "w2" : {
-                f"expert{i}": torch.randn(4096 * 14336, dtype=torch.float16) for i in range(8)
+                f"expert{i}": torch.randn(2048 * 8192, dtype=torch.float16) for i in range(8)
             }
         },
         # "Mixtral" : {
@@ -170,7 +170,7 @@ def GEMV_example(args):
 
     mem.broadcast_to_DRAM_all_bank(in1_bo, input1, True)
     mem.scatter_to_DRAM_all_bank(in2_bo, input2, False)
-    out = mem.GEMV_BO(in1_bo, in2_bo, out_bo)
+    out = mem.PIM_GEMV_BO(in1_bo, in2_bo, out_bo)
     torch.set_printoptions(threshold=10) 
     print(out.sum(dim=1), out.shape)
     print("----------------------------------------------")
@@ -207,8 +207,9 @@ def main():
     model.set_mapping()
     model.weight_mapping(False)
     model.gating()
-    model.FFN_ref()
-    model.FFN_PIM(True)
+    out1 = model.FFN_ref()
+    out2 = model.FFN_PIM(True)
+    save_diff_indices(out1, out2)
 
 if __name__ == "__main__":
     main()

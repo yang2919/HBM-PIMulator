@@ -82,7 +82,7 @@ class System(Memory):
                             data.append(self.load_from_DRAM_single_bank(hbm, ch, bg, _bk, row, col, 2, op_trace))
         return torch.stack(data)
     
-    def GEMV_BO(self, in_bo1: Buffer, in_bo2: Buffer, out_bo: Buffer, op_trace: bool):
+    def PIM_GEMV_BO(self, in_bo1: Buffer, in_bo2: Buffer, out_bo: Buffer, op_trace: bool):
         num_cols_per_bank = in_bo2.size // in_bo1.size
         num_rfs = self.num_grfs // 2
         num_rfs_out = self.num_grfs // 4

@@ -82,7 +82,7 @@ class ModelMixtral(System):
 
         # x1 * W1 GEMV
         for i in range(self.top_k):
-            self.GEMV_BO(self.x1_bo, self.w1_bo[self.top_experts[i]], self.o1_bo[i], op_trace)
+            self.PIM_GEMV_BO(self.x1_bo, self.w1_bo[self.top_experts[i]], self.o1_bo[i], op_trace)
 
         # o1 All-gather
         self.o1 = []
