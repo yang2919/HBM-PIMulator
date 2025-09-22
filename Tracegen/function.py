@@ -105,6 +105,11 @@ class System(Memory):
                     for rf_col in range(size_cur_col):
                         row, col = in_bo2.get_index(self.DRAM_column, iter * num_rfs + rf + (idx_cur_col + rf_col) * in_bo1.size)
                         bk = 0
+                        if (idx_cur_col + rf_col) == 32: # 32번째와 33번째 컬럼만 확인
+                            if row == 0: # 각 컬럼의 첫 번째 row 연산만 출력
+                                print(f"Calculated Addr   : (row={row}, col={col})")
+                                print(f"Buffer Size (bursts): {in_bo2.size}")
+                                print(f"-------------")
                         if row >= self.DRAM_row:
                             row %= self.DRAM_row
                             bk = 1

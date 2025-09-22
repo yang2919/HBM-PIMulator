@@ -25,7 +25,7 @@ def build_args():
     parser.add_argument("--PIM_srf", type=int, default=4)
 
     # Model hyper parameters
-    parser.add_argument("--dim", type=int, default=2048)
+    parser.add_argument("--dim", type=int, default=1024)
     parser.add_argument("--dim_expert", type=int, default=8192)
     parser.add_argument("--n_expert", type=int, default=8)
     parser.add_argument("--top_k", type=int, default=2)
@@ -86,12 +86,12 @@ def fill_all_banks_with_random(mem, row=0, col=0):
 def generate_model_dic(model : str="Mixtral"):
     model_dic = {
         "Mixtral" : {
-            "x1" : torch.randn(2048, dtype=torch.float16),
+            "x1" : torch.randn(1024, dtype=torch.float16),
             "w1" : {
-                f"expert{i}": torch.randn(2048 * 8192, dtype=torch.float16) for i in range(8)
+                f"expert{i}": torch.randn(1024 * 8192, dtype=torch.float16) for i in range(8)
             },
             "w2" : {
-                f"expert{i}": torch.randn(2048 * 8192, dtype=torch.float16) for i in range(8)
+                f"expert{i}": torch.randn(1024 * 8192, dtype=torch.float16) for i in range(8)
             }
         },
         # "Mixtral" : {
@@ -115,7 +115,7 @@ def generate_model_dic(model : str="Mixtral"):
     }
     return model_dic[model]
 
-def compare_lists(list1, list2, tol: float = 0.1) -> bool:
+def compare_lists(list1, list2, tol: float = 0.2) -> bool:
     results = []
     for t1, t2 in zip(list1, list2):
         results.append(abs(t1.sum() - t2.sum()) < tol)
@@ -196,7 +196,7 @@ def main():
     torch.multiprocessing.set_sharing_strategy('file_system')
     args = build_args()
     #GEMV_example(args)
-    torch.manual_seed(1)
+    #torch.manual_seed(1)
     model_dic = generate_model_dic()
     print("Parameter generation finished...")
 

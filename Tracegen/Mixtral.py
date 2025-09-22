@@ -42,17 +42,17 @@ class ModelMixtral(System):
         self.o1_bo = []
         for _ in range(self.top_k):
             self.o1_bo.append(self.create_BO(self.dim_expert * 16, hbm, channel, [self.row_idx, 0], True))
-            self.row_idx += 1
+            self.row_idx += (self.o1_bo[-1].size // self.DRAM_column) + 1
 
         self.x2_bo = []
         for _ in range(self.top_k):
-            self.x2_bo.append(self.create_BO(self.dim_expert, hbm, channel, [self.row_idx, 0], False))
-            self.row_idx += 1
+            self.x2_bo.append(self.create_BO(self.dim_expert  * 16, hbm, channel, [self.row_idx, 0], False))
+            self.row_idx += (self.x2_bo[-1].size // self.DRAM_column) + 1
 
         self.o2_bo = []
         for _ in range(self.top_k):
             self.o2_bo.append(self.create_BO(self.dim, hbm, channel, [self.row_idx, 0], False))
-            self.row_idx += 1
+            self.row_idx += (self.o2_bo[-1].size // self.DRAM_column) + 1
 
         print("Mapping finished... # of rows: ", self.row_idx)
 
@@ -68,12 +68,23 @@ class ModelMixtral(System):
         self.top_experts = [0, 1]
 
     def FFN_ref(self):
-        self.o1_ref = []
-        for i in range(self.top_k):
-            self.o1_ref.append(self.x1 * self.w1[self.top_experts[i]].view(-1, self.x1.shape[0]))
+        expert_outputs = []
 
-        print(self.o1_ref[0].sum(dim=1)[-128: -1], self.o1_ref[0].shape)
-        return self.o1_ref[0].sum(dim=1)
+        for i in range(1):
+            expert_idx = self.top_experts[i]
+
+            w1 = self.w1[expert_idx].view(self.dim_expert, self.dim)
+            o1 = (self.x1 * w1).sum(dim=1)
+
+            x2 = o1
+            
+            w2 = self.w2[expert_idx].view(self.dim, self.dim_expert)
+            o2 = (x2 * w2).sum(dim=1)
+            
+            expert_outputs.append(o2)
+        final_output = torch.stack(expert_outputs).sum(dim=0)
+        
+        return final_output
 
 
     def FFN_PIM(self, op_trace):
@@ -88,21 +99,18 @@ class ModelMixtral(System):
         self.o1 = []
         for i in range(self.top_k):
             self.o1.append(self.gather_from_DRAM_all_bank(self.o1_bo[i], op_trace))
-        print(self.o1[0].sum(dim=1)[-128: -1], self.o1[0].shape)
-        return self.o1[0].sum(dim=1)
+            self.o1[-1] = self.o1[-1].sum(dim=1)
 
-'''
-        self.o1_t = self.o1[0].sum(dim=1)
         # Activation - SwiGLU
-        self.x2 = F.silu(o1_t) * o1_t
+        self.x2 = self.o1
 
         # x2 Scatter
         for i in range(self.top_k):
-            self.broadcast_to_DRAM_all_bank(self.x2_bo[i], self.x2[i].view(-1), op_trace)
+            self.scatter_to_DRAM_all_bank(self.x2_bo[i], self.x2[i], op_trace)
 
         # x2 * W2 GEMV
         self.o2 = []
         for i in range(self.top_k):
             self.o2.append(self.gather_from_DRAM_all_bank(self.o2_bo[i], op_trace))
-'''
+        return self.o2[0].sum(dim=1)
         # o2 All-reduce
