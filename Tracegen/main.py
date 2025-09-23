@@ -1,9 +1,6 @@
-# run_memory.py
 import argparse
 import torch
 
-# 사용자가 제공한 클래스들이 같은 파일에 없다면 적절히 import 경로를 수정하세요.
-# 예: from pim_mem import Memory
 from function import System 
 from Mixtral import ModelMixtral
 
@@ -205,6 +202,13 @@ def main():
 
     model = ModelMixtral(model_dic, args)
     model.set_mapping()
+    
+    # print("x1: ", model.x1_bo.size)
+    # print("w1: ", model.w1_bo[0].size)
+    # print("o1: ", model.o1_bo[0].size)
+    # print("x2: ", model.x2_bo[0].size)
+    # print("w2: ", model.w2_bo[0].size)
+    # print("o2: ", model.o2_bo[0].size)
     model.weight_mapping(False)
     model.gating()
     out1 = model.FFN_ref()
