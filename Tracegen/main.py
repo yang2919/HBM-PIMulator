@@ -193,7 +193,7 @@ def main():
     torch.multiprocessing.set_sharing_strategy('file_system')
     args = build_args()
     #GEMV_example(args)
-    #torch.manual_seed(1)
+    torch.manual_seed(1)
     model_dic = generate_model_dic()
     print("Parameter generation finished...")
 

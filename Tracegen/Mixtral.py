@@ -46,7 +46,7 @@ class ModelMixtral(System):
 
         self.x2_bo = []
         for _ in range(self.top_k):
-            self.x2_bo.append(self.create_BO(self.dim_expert // 8, hbm, channel, [self.row_idx, 0], False))
+            self.x2_bo.append(self.create_BO(self.dim_expert, hbm, channel, [self.row_idx, 0], True))
             self.row_idx += (self.x2_bo[-1].size // self.DRAM_column) + 1
 
         self.o2_bo = []
@@ -59,8 +59,8 @@ class ModelMixtral(System):
     def weight_mapping(self, op_trace):
         for w1_bo, w1 in zip(self.w1_bo, self.w1):
             self.scatter_to_DRAM_all_bank(w1_bo, w1, op_trace)
-        # for w2_bo, w2 in zip(self.w2_bo, self.w2):
-        #     self.scatter_to_DRAM_all_bank(w2_bo, w2, op_trace)
+        for w2_bo, w2 in zip(self.w2_bo, self.w2):
+            self.scatter_to_DRAM_all_bank(w2_bo, w2, op_trace)
 
         print("Weight matrix stored")
 
@@ -109,8 +109,14 @@ class ModelMixtral(System):
             self.scatter_to_DRAM_all_bank(self.x2_bo[i], self.x2[i], op_trace)
 
         # x2 * W2 GEMV
+        for i in range(self.top_k):
+            self.PIM_GEMV_BO(self.x2_bo[i], self.w2_bo[self.top_experts[i]], self.o2_bo[i], op_trace)
+
+        # o2 All-reduce
         self.o2 = []
         for i in range(self.top_k):
-            self.o2.append(self.gather_from_DRAM_all_bank(self.o2_bo[i], op_trace))
-        return self.o2[0].sum(dim=1).sum(dim=1)
-        # o2 All-reduce
+            self.o2.append(self.reduce_from_DRAM_all_bank(self.o2_bo[i], op_trace))
+        #print(self.o2[0])
+
+        print("FFN completed")
+        return self.o2[0].sum(dim=0)

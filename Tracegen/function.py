@@ -82,6 +82,23 @@ class System(Memory):
                             data.append(self.load_from_DRAM_single_bank(hbm, ch, bg, _bk, row, col, 2, op_trace))
         return torch.stack(data)
     
+    def reduce_from_DRAM_all_bank(self, bo, op_trace):
+        data = []
+        for hbm in bo.hbm_index:
+            for ch in bo.channel_index:
+                for bg in range(self.num_bankgroups):
+                    for bk in range(self.num_banks // 2):
+                        p_data = []
+                        for idx in range(bo.size):
+                            _bk = bk * 2
+                            row, col = bo.get_index(self.DRAM_column, idx)
+                            if row >= self.DRAM_row:
+                                row %= self.DRAM_row
+                                _bk += 1
+                            p_data.append(self.load_from_DRAM_single_bank(hbm, ch, bg, _bk, row, col, 2, op_trace))
+                        data.append(torch.stack(p_data).sum(dim=1))
+        return torch.stack(data)
+    
     def PIM_GEMV_BO(self, in_bo1: Buffer, in_bo2: Buffer, out_bo: Buffer, op_trace: bool):
         num_cols_per_bank = in_bo2.size // in_bo1.size
         num_rfs = self.num_grfs // 2
