@@ -77,12 +77,18 @@ class ModelMixtral(System):
             o1 = (self.x1 * w1).sum(dim=1)
 
             x2 = o1
+
+            o2 = []
+            for j in range(128):
+                xp = x2[j * 64: (j+1)*64]
+                wp = self.w2[i][j * 64 * 1024: (j+1) * 64 * 1024]
+                wp = wp.view(-1, 64)
+                op = (xp * wp)
+                o2.append(op.sum(dim=1))
             
-            w2 = self.w2[expert_idx].view(self.dim, self.dim_expert)
-            o2 = (x2 * w2).sum(dim=1)
-            
-            expert_outputs.append(o2)
-        final_output = torch.stack(expert_outputs).sum(dim=0)
+            expert_outputs.append(torch.stack(o2))
+
+        final_output = expert_outputs[0].sum(dim=0)
         
         return final_output
 
@@ -116,7 +122,6 @@ class ModelMixtral(System):
         self.o2 = []
         for i in range(self.top_k):
             self.o2.append(self.reduce_from_DRAM_all_bank(self.o2_bo[i], op_trace))
-        #print(self.o2[0])
 
         print("FFN completed")
         return self.o2[0].sum(dim=0)

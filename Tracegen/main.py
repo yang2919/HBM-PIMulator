@@ -211,9 +211,9 @@ def main():
     # print("o2: ", model.o2_bo[0].size)
     model.weight_mapping(False)
     model.gating()
-    out1 = model.FFN_ref()
-    out2 = model.FFN_PIM(True)
-    save_diff_indices(out1, out2)
+    #out1 = model.FFN_ref()
+    model.FFN_PIM(True)
+    #save_diff_indices(out1, out2)
 
 if __name__ == "__main__":
     main()

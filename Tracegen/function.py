@@ -101,7 +101,7 @@ class System(Memory):
     
     def PIM_GEMV_BO(self, in_bo1: Buffer, in_bo2: Buffer, out_bo: Buffer, op_trace: bool):
         num_cols_per_bank = in_bo2.size // in_bo1.size
-        num_rfs = self.num_grfs // 2
+        num_rfs = self.num_grfs // 4
         num_rfs_out = self.num_grfs // 4
 
         idx_cur_col = 0
@@ -122,11 +122,7 @@ class System(Memory):
                     for rf_col in range(size_cur_col):
                         row, col = in_bo2.get_index(self.DRAM_column, iter * num_rfs + rf + (idx_cur_col + rf_col) * in_bo1.size)
                         bk = 0
-                        if (idx_cur_col + rf_col) == 32: # 32번째와 33번째 컬럼만 확인
-                            if row == 0: # 각 컬럼의 첫 번째 row 연산만 출력
-                                print(f"Calculated Addr   : (row={row}, col={col})")
-                                print(f"Buffer Size (bursts): {in_bo2.size}")
-                                print(f"-------------")
+                        
                         if row >= self.DRAM_row:
                             row %= self.DRAM_row
                             bk = 1
