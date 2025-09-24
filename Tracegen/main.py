@@ -35,7 +35,7 @@ def build_args():
     parser.add_argument("--FC_devices", type=int, default=1,
                         help="model_parallel일 때 디바이스 수")
     parser.add_argument("--op_trace", type=bool, default=True)
-    parser.add_argument("--trace_file", type=str, default="trace.txt",
+    parser.add_argument("--trace_file", type=str, default="trace.trace",
                         help="트레이스 출력 파일 경로")
 
     # (선택) 멀티프로세싱용 스레드 수
@@ -82,24 +82,24 @@ def fill_all_banks_with_random(mem, row=0, col=0):
 
 def generate_model_dic(model : str="Mixtral"):
     model_dic = {
-        "Mixtral" : {
-            "x1" : torch.randn(1024, dtype=torch.float16),
-            "w1" : {
-                f"expert{i}": torch.randn(1024 * 8192, dtype=torch.float16) for i in range(8)
-            },
-            "w2" : {
-                f"expert{i}": torch.randn(1024 * 8192, dtype=torch.float16) for i in range(8)
-            }
-        },
         # "Mixtral" : {
-        #     "x1" : torch.zeros(4096, dtype=torch.float16),
+        #     "x1" : torch.randn(1024, dtype=torch.float16),
         #     "w1" : {
-        #         f"expert{i}": torch.zeros(4096 * 14336, dtype=torch.float16) for i in range(8)
+        #         f"expert{i}": torch.randn(1024 * 8192, dtype=torch.float16) for i in range(8)
         #     },
         #     "w2" : {
-        #         f"expert{i}": torch.zeros(4096 * 14336, dtype=torch.float16) for i in range(8)
+        #         f"expert{i}": torch.randn(1024 * 8192, dtype=torch.float16) for i in range(8)
         #     }
         # },
+        "Mixtral" : {
+            "x1" : torch.zeros(4096, dtype=torch.float16),
+            "w1" : {
+                f"expert{i}": torch.zeros(4096 * 14336, dtype=torch.float16) for i in range(8)
+            },
+            "w2" : {
+                f"expert{i}": torch.zeros(14336 * 4096, dtype=torch.float16) for i in range(8)
+            }
+        },
         "Deepseek-MoE-16B" : {
             "x1" : torch.randn(2048, dtype=torch.float16),
             "w1" : {
@@ -107,6 +107,15 @@ def generate_model_dic(model : str="Mixtral"):
             },
             "w2" : {
                 f"expert{i}": torch.randn(1408 * 2048, dtype=torch.float16) for i in range(66)
+            }
+        },
+        "Qwen" : {
+            "x1" : torch.randn(2048, dtype=torch.float16),
+            "w1" : {
+                f"expert{i}": torch.randn(2048 * 2048, dtype=torch.float16) for i in range(128)
+            },
+            "w2" : {
+                f"expert{i}": torch.randn(2048 * 2048, dtype=torch.float16) for i in range(128)
             }
         }
     }
@@ -194,7 +203,9 @@ def main():
     args = build_args()
     #GEMV_example(args)
     torch.manual_seed(1)
-    model_dic = generate_model_dic()
+    
+    model_dic = generate_model_dic("Deepseek-MoE-16B")
+    #model_dic = generate_model_dic("Mixtral")
     print("Parameter generation finished...")
 
     torch.set_printoptions(threshold=10)
@@ -214,6 +225,8 @@ def main():
     #out1 = model.FFN_ref()
     model.FFN_PIM(True)
     #save_diff_indices(out1, out2)
+    model.file.write("PIM EXIT")
+    model.file.close()
 
 if __name__ == "__main__":
     main()

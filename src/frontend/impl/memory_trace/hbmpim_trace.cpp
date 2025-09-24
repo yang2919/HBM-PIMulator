@@ -121,6 +121,7 @@ namespace Ramulator
               int ad1 = std::stoi(token[1]);
               int ad2 = -1;
               int ad3 = -1;
+
               if (loc == LOCATE::BANK)
               {
                 ad2 = std::stoi(token[2]);

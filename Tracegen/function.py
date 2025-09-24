@@ -15,6 +15,11 @@ class Buffer():
         start_idx = self.start_index[0] * column_size + self.start_index[1]
         final_idx = start_idx + offset
         return [final_idx // column_size, final_idx % column_size]
+    
+    def in_range(self, column_size, row, col):
+        start_idx = row * column_size + col
+        final_idx = self.final_index[0] * column_size + self.final_index[1]
+        return start_idx < final_idx
 
 class System(Memory):
     def __init__(self, args):
@@ -101,25 +106,28 @@ class System(Memory):
     
     def PIM_GEMV_BO(self, in_bo1: Buffer, in_bo2: Buffer, out_bo: Buffer, op_trace: bool):
         num_cols_per_bank = in_bo2.size // in_bo1.size
-        num_rfs = self.num_grfs // 4
-        num_rfs_out = self.num_grfs // 4
+        num_rfs = self.num_grfs // 2
+        num_rfs_out = self.num_grfs // 2
 
         idx_cur_col = 0
         while idx_cur_col < num_cols_per_bank:
             size_cur_col = min(num_rfs_out, num_cols_per_bank - idx_cur_col)
             init = False
             for iter in range(in_bo1.size // num_rfs):
-                for rf in range(num_rfs):
+                num_cur_rfs = min(num_rfs, in_bo1.size - num_rfs * iter)
+                for rf in range(num_cur_rfs):
                     row, col = in_bo1.get_index(self.DRAM_column, iter * num_rfs + rf)
                     bk = 0
+
                     if row >= self.DRAM_row:
                         row %= self.DRAM_row
                         bk = 1
                     for hbm in in_bo1.hbm_index:
                         for ch in in_bo1.channel_index:
                             self.PIM_FILL(hbm, ch, bk, row, col, rf, op_trace)
-                for rf in range(num_rfs):
-                    for rf_col in range(size_cur_col):
+                
+                for rf_col in range(size_cur_col):
+                    for rf in range(num_cur_rfs):
                         row, col = in_bo2.get_index(self.DRAM_column, iter * num_rfs + rf + (idx_cur_col + rf_col) * in_bo1.size)
                         bk = 0
                         
