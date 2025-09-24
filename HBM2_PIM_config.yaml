@@ -15,9 +15,9 @@ MemorySystem:
   DRAM:
     impl: HBM2
     org:
-      preset: HBM2_PIM_6Gb
+      preset: HBM2_PIM_2Gb
     timing:
-      preset: HBM2_PIM_6Gb_timing 
+      preset: HBM2_PIM_2Gb_timing 
 
   Controller:
     impl: HBMPIMController

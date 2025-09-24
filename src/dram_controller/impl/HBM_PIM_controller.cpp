@@ -183,7 +183,7 @@ public:
 
         // 1. Serve completed reads
               
-      serve_completed_reads();
+      serve_completed_reqs();
 
       m_refresh->tick();
       // 2. Try to find a request to serve.
@@ -208,7 +208,7 @@ public:
                 int latency = m_dram->m_command_latencies(req_it->command);                
                 assert(latency > 0);
                 req_it->depart = m_clk + latency;
-                if (req_it->type_id == Request::Type::Read) {
+                if (req_it->type_id == Request::Type::Read || req_it->operation_id == Opcode::EXIT) {
                     pending_reads.push_back(*req_it);
                 } else {
                     pending_writes.push_back(*req_it);
@@ -306,26 +306,60 @@ public:
      * It checks the pending queue to see if the top request has received data from DRAM.
      * If so, it finishes this request by calling its callback and poping it from the pending queue.
      */
-    void serve_completed_reads() {
-      if (pending_reads.size()) {
-        // Check the first pending request
-        auto& req = pending_reads[0];
-        if (req.depart <= m_clk) {
-          // Request received data from dram
-          if (req.depart - req.arrive > 1) {
-            // Check if this requests accesses the DRAM or is being forwarded.
-            // TODO add the stats back
-            s_read_latency += req.depart - req.arrive;
-          }
+    // void serve_completed_reads() {
+    //   if (pending_reads.size()) {
+    //     // Check the first pending request
+    //     auto& req = pending_reads[0];
+    //     if (req.depart <= m_clk) {
+    //       // Request received data from dram
+    //       if (req.depart - req.arrive > 1) {
+    //         // Check if this requests accesses the DRAM or is being forwarded.
+    //         // TODO add the stats back
+    //         s_read_latency += req.depart - req.arrive;
+    //       }
 
-          if (req.callback) {
-            // If the request comes from outside (e.g., processor), call its callback
-            req.callback(req);
-          }
-          // Finally, remove this request from the pending queue
-          pending_reads.pop_front();
+    //       if (req.callback) {
+    //         // If the request comes from outside (e.g., processor), call its callback
+    //         req.callback(req);
+    //       }
+    //       // Finally, remove this request from the pending queue
+    //       pending_reads.pop_front();
+    //     }
+    //   };
+    // };
+    void serve_completed_reqs() {
+        if (pending_reads.size()) {
+            // Check the first pending_reads request
+            auto &req = pending_reads[0];
+            if (req.depart <= m_clk) {
+                // Request received data from dram
+
+                if ((req.operation_id != Opcode::EXIT) ||
+                    (pending_writes.size() == 0)) {
+
+                    if (req.callback) {
+                        // If the request comes from outside (e.g., processor), call its callback
+                        // m_logger->info("[CLK {}] Calling back {}!", m_clk, req.str());
+                        req.callback(req);
+                    }
+                    // else {
+                    //     m_logger->info("[CLK {}] Warning: {} doesn't have callback set but it is in the pending_reads queue!", m_clk, req.str());
+                    // }
+                    // Finally, r emove this request from the pending_reads queue
+                    pending_reads.pop_front();
+                }
+            }
         }
-      };
+        auto write_req_it = pending_writes.begin();
+        while (write_req_it != pending_writes.end()) {
+            if (write_req_it->depart <= m_clk) {
+                // Remove this write request
+                // m_logger->info("[CLK {}] Finished {}!", m_clk, write_req_it->str());
+                write_req_it = pending_writes.erase(write_req_it);
+            } else {
+                ++write_req_it;
+            }
+        }
     };
 
     /**

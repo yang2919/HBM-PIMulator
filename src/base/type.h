@@ -42,7 +42,7 @@ struct Opcode {
 
 typedef struct POperand_{ // PIM specific address struct
     LOCATE loc;
-    int addr;
+    int addr1, addr2, addr3;
 }POperand;
 
 using POperand_t = std::vector<POperand>;

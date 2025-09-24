@@ -46,10 +46,8 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
           req.addr_vec[4] = 0;
         else {
           if(req.poperand[0].loc == LOCATE::BANK){
-              req.addr_vec[4] = req.poperand[0].addr;
-          }
-          else if(req.poperand[1].loc == LOCATE::BANK){
-              req.addr_vec[4] = req.poperand[1].addr;
+              req.addr_vec[4] = req.poperand[0].addr2;
+              req.addr_vec[5] = req.poperand[0].addr3;
           }
         }
     }
@@ -112,86 +110,7 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
 
         return true;
     };
-/*
-    bool send(Request req) override { // Todo: seperate timing of transition and PIM commands.
-      // SB operation
-      if (req.type_id == Request::Type::Read || req.type_id == Request::Type::Write){ // Type Transition
-        if (current_mode != Mode::SB){
-          if (current_mode == Mode::PIM){
-            Request r = Request(Opcode::TMOD_P);
-            if(send_all(r) == false) return false;
-            s_num_trans_requests++;
-            current_mode = Mode::AB;
-          }
-          if (current_mode == Mode::AB){
-            Request r = Request(Opcode::TMOD_A);
-            if(send_all(r) == false) return false;
-            s_num_trans_requests++;
-            current_mode = Mode::SB;
-          }
-        }
-        
-        m_addr_mapper->apply(req);
-        int channel_id = req.addr_vec[0];
-        bool is_success = m_controllers[channel_id]->send(req);
-
-        if (is_success) {
-          switch (req.type_id) {
-            case Request::Type::Read: {
-              s_num_read_requests++;
-              break;
-            }
-            case Request::Type::Write: {
-              s_num_write_requests++;
-              break;
-            }
-          }
-        }
-      } 
-      // AB Operation
-      else if (req.type_id == Request::Type::AB){
-        if(current_mode != Mode::AB){
-          if(current_mode == Mode::SB){
-            Request r = Request(Opcode::TMOD_A);
-            if(send_all(r) == false) return false;
-            s_num_trans_requests++;
-            current_mode = Mode::AB;
-          } else if(current_mode == Mode::PIM){
-            Request r = Request(Opcode::TMOD_P);
-            if(send_all(r) == false) return false;
-            s_num_trans_requests++;
-            current_mode = Mode::AB;
-          }
-        }
-
-        if(send_all(req) == false) return false;
-        s_num_write_requests++;
-      } 
-      // PIM Operation
-      else if (req.type_id == Request::Type::PIM){
-        if(current_mode != Mode::PIM){
-          if(current_mode == Mode::SB){
-            Request r = Request(Opcode::TMOD_A);
-            if(send_all(r) == false) return false;
-            s_num_trans_requests++;
-            current_mode = Mode::AB;
-          }
-          
-          if(current_mode == Mode::AB){
-            Request r = Request(Opcode::TMOD_A);
-            if(send_all(r) == false) return false;
-            s_num_trans_requests++;
-            current_mode = Mode::PIM;
-          }
-        }
-
-        if(send_all(req) == false) return false;
-        s_num_pim_requests++;
-      }
-      
-      return true;
-    }; */
-    
+   
     void tick() override {
       bool was_request_remaining = false;
       for (int channel_id = 0; channel_id < MAX_CHANNEL_COUNT; channel_id++) {
@@ -248,7 +167,7 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
             if(m_controllers[channel_id]->send(req) == false){
               remaining_requests[channel_id].push(req);
             }
-          } 
+          }
 
           // AB Operation
           else if (req.type_id == Request::Type::AB){

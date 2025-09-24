@@ -12,13 +12,13 @@ class HBM2 : public IDRAM, public Implementation {
       {"HBM2_2Gb",   {2<<10,  128,  {1, 2,  4,  2, 1<<14, 1<<6}}},
       {"HBM2_4Gb",   {4<<10,  128,  {1, 2,  4,  4, 1<<14, 1<<6}}},
       {"HBM2_8Gb",   {6<<10,  128,  {1, 2,  4,  4, 1<<15, 1<<6}}},
-      {"HBM2_PIM_6Gb", {8<<10,  128,  {1, 1,  4,  4, 1<<18, 1<<4}}},
+      {"HBM2_PIM_2Gb", {8<<10,  128,  {1, 1,  4,  4, 1<<18, 1<<4}}},
     };
 
     inline static const std::map<std::string, std::vector<int>> timing_presets = {
       //   name       rate   nBL  nCL  nRCDRD  nRCDWR  nRP  nRAS  nRC  nWR  nRTPS  nRTPL  nCWL  nCCDS  nCCDL  nRRDS  nRRDL  nWTRS  nWTRL  nRTW  nFAW  nRFC  nRFCSB  nREFI  nREFISB  nRREFD   nALU  nDATA  nCON  nMOD  nRWR  tCK_ps
-      {"HBM2_2Gbps",  {2000,   4,   7,    7,      7,     7,   17,  19,   8,    2,     3,    2,    1,      2,     2,     3,     3,     4,    3,    15,   -1,   160,   3900,     -1,      8,     16,    16,    4,   6,    4,    1000}},
-      {"HBM2_PIM_6Gb_timing",  {2000,   4,   7,    7,      7,     7,   17,  19,   8,    2,     3,    2,    1,      2,     2,     3,     3,     4,    3,    15,   -1,   160,   3900,     -1,      8,   16,    16,    4,   6,    4,  1000}},
+      {"HBM2_2Gbps_timing",  {2000,   4,   7,    7,      7,     7,   17,  19,   8,    2,     3,    2,    1,      2,     2,     3,     3,     4,    3,    15,   -1,   160,   3900,     -1,      8,     16,    16,    4,   6,    4,    1000}},
+      {"HBM2_PIM_2Gb_timing",  {2000,   4,   7,    7,      7,     7,   17,  19,   8,    2,     3,    2,    1,      2,     2,     3,     3,     4,    3,    15,   -1,   160,   3900,     -1,      8,   16,    16,    4,   6,    4,  1000}},
       // TODO: Find more sources on HBM2 timings...
       // Todo: 추가할 timing parameter 결정. nALU -> 4*4, nDATA -> 4*4, nCON -> 1*4. Mode transition timing parameter랑, AB mode에서 PU register에 write할 때 timing parameter 필요.
       // nALU, nDATA, nCON, nMOD, nRWR
@@ -98,8 +98,10 @@ class HBM2 : public IDRAM, public Implementation {
     );
 
     inline static constexpr ImplDef m_pim_requests = {
-      "MAC", "MUL", "MAD", "ADD", "MACRF", "MULRF", "MADRF", "ADDRF", "JUMP", "EXIT", "NOP", "FILL", "MOV", "TMOD_A", "TMOD_P"
-    };
+"MAC", "MUL", "MAD", "ADD", 
+      "MACRF", "MULRF", "MADRF", "ADDRF",
+      "MOV", "FILL", "NOP", "JUMP", "EXIT",
+      "TMOD_A", "TMOD_P"    };
 
     inline static const ImplLUT m_pim_requests_translations = LUT(
       m_pim_requests, m_commands, {
@@ -379,14 +381,17 @@ class HBM2 : public IDRAM, public Implementation {
           {.level = "channel", .preceding = {"WRA"}, .following = {"ACTA"}, .latency = V("nCWL") + V("nBL") + V("nWR") + V("nRP")},
           
           // PIM <-> PIM
+          // "PIM pipelining"
+          {.level = "channel", .preceding = {"MAC", "MUL", "ADD", "DATA", "MACRF", "MULRF", "ADDRF"}, .following = {"MAC", "MUL", "ADD", "DATA", "MACRF", "MULRF", "ADDRF"}, .latency = 4},
+
           // "PIM operation time"
-          {.level = "channel", .preceding = {"MAC"}, .following = {"MAC", "MUL", "ADD", "MACRF", "MULRF", "ADDRF", "ACTA", "PREA", "ACT", "PRE", "TMOD"}, .latency = 20},
-          {.level = "channel", .preceding = {"MUL", "ADD", "MACRF"}, .following = {"MAC", "MUL", "ADD", "MACRF", "MULRF", "ADDRF", "ACTA", "PREA", "ACT", "PRE", "TMOD"}, .latency = 16},
-          {.level = "channel", .preceding = {"MULRF", "ADDRF", "DATA"}, .following = {"MAC", "MUL", "ADD", "MACRF", "MULRF", "ADDRF", "ACTA", "PREA", "ACT", "PRE", "TMOD"}, .latency = 12},
+          {.level = "channel", .preceding = {"MAC"}, .following = {"ACTA", "PREA", "ACT", "PRE", "TMOD", "CON"}, .latency = 20},
+          {.level = "channel", .preceding = {"MUL", "ADD", "MACRF"}, .following = {"ACTA", "PREA", "ACT", "PRE", "TMOD", "CON"}, .latency = 16},
+          {.level = "channel", .preceding = {"MULRF", "ADDRF", "DATA"}, .following = {"ACTA", "PREA", "ACT", "PRE", "TMOD", "CON"}, .latency = 12},
 
           // "Activate all banks before pim operation"
-          {.level = "channel", .preceding = {"ACTA"}, .following = {"MAC", "MUL", "ADD", "DATA"}, .latency = V("nRRDS")*4*4},
-          {.level = "channel", .preceding = {"ACTA"}, .following = {"MAC", "MUL", "ADD", "DATA"}, .latency = V("nFAW")*3 + V("nRRDS")*3 + V("nRCDRD")},
+          {.level = "channel", .preceding = {"ACTA"}, .following = {"MAC", "MUL", "ADD", "DATA"}, .latency = V("nRRDS")*8},
+          {.level = "channel", .preceding = {"ACTA"}, .following = {"MAC", "MUL", "ADD", "DATA"}, .latency = V("nFAW") + V("nRRDS")*3 + V("nRCDRD")},
 
 
           /*** Pseudo Channel (Table 3 — Array Access Timings Counted Individually Per Pseudo Channel, JESD-235C) ***/ 

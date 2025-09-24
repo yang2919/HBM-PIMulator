@@ -48,6 +48,7 @@ struct Request {
   Request(Addr_t addr, int type);
   Request(AddrVec_t addr_vec, int type);
   Request(Addr_t addr, int type, int source_id, std::function<void(Request&)> callback);
+  Request(Addr_t addr, std::function<void(Request&)> callback);
 
   Request(Addr_t addr, int type, int opcode, POperand_t pop);
   Request(int opcode);
