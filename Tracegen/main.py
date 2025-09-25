@@ -2,7 +2,7 @@ import argparse
 import torch
 
 from function import System 
-from Mixtral import ModelMixtral
+from Hypothesis1 import ModelMixtral
 
 def build_args():
     parser = argparse.ArgumentParser(description="PIM Memory simulator arguments")
@@ -22,10 +22,10 @@ def build_args():
     parser.add_argument("--PIM_srf", type=int, default=4)
 
     # Model hyper parameters
-    parser.add_argument("--dim", type=int, default=1024)
-    parser.add_argument("--dim_expert", type=int, default=8192)
-    parser.add_argument("--n_expert", type=int, default=8)
-    parser.add_argument("--top_k", type=int, default=2)
+    parser.add_argument("--dim", type=int, default=2048)
+    parser.add_argument("--dim_expert", type=int, default=768)
+    parser.add_argument("--n_expert", type=int, default=1)
+    parser.add_argument("--top_k", type=int, default=1)
 
     # 실행/트레이스 옵션
     parser.add_argument("--only_trace", action="store_true",
@@ -35,7 +35,7 @@ def build_args():
     parser.add_argument("--FC_devices", type=int, default=1,
                         help="model_parallel일 때 디바이스 수")
     parser.add_argument("--op_trace", type=bool, default=True)
-    parser.add_argument("--trace_file", type=str, default="trace.trace",
+    parser.add_argument("--trace_file", type=str, default="hypothesis1.trace",
                         help="트레이스 출력 파일 경로")
 
     # (선택) 멀티프로세싱용 스레드 수
@@ -103,10 +103,10 @@ def generate_model_dic(model : str="Mixtral"):
         "Deepseek-MoE-16B" : {
             "x1" : torch.randn(2048, dtype=torch.float16),
             "w1" : {
-                f"expert{i}": torch.randn(2048 * 2048, dtype=torch.float16) for i in range(66)
+                f"expert{i}": torch.randn(2048 * 768, dtype=torch.float16) for i in range(66)
             },
             "w2" : {
-                f"expert{i}": torch.randn(2048 * 2048, dtype=torch.float16) for i in range(66)
+                f"expert{i}": torch.randn(768 * 2048, dtype=torch.float16) for i in range(66)
             }
         },
         "Qwen" : {
@@ -214,12 +214,12 @@ def main():
     model = ModelMixtral(model_dic, args)
     model.set_mapping()
     
-    # print("x1: ", model.x1_bo.size)
-    # print("w1: ", model.w1_bo[0].size)
-    # print("o1: ", model.o1_bo[0].size)
-    # print("x2: ", model.x2_bo[0].size)
-    # print("w2: ", model.w2_bo[0].size)
-    # print("o2: ", model.o2_bo[0].size)
+    print("x1: ", model.x1_bo.size)
+    print("w1: ", model.w1_bo[0].size)
+    print("o1: ", model.o1_bo[0].size)
+    print("x2: ", model.x2_bo[0].size)
+    print("w2: ", model.w2_bo[0].size)
+    print("o2: ", model.o2_bo[0].size)
     model.weight_mapping(False)
     model.gating()
     #out1 = model.FFN_ref()
