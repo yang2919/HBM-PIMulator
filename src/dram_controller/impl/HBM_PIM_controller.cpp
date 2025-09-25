@@ -77,22 +77,22 @@ namespace Ramulator
             m_priority_buffer.max_size = 512 * 3 + 32;
             m_logger = Logging::create_logger("HBMPIMController[" + std::to_string(m_channel_id) + "]");
 
-            for (const auto type : {Request::Type::Read, Request::Type::Write})
-            {
-                s_num_RW_cycles[type] = 0;
-                register_stat(s_num_RW_cycles[type])
-                    .name(fmt::format("CH{}_{}_cycles",
-                                      m_channel_id,
-                                      type == Request::Type::Read ? "Read" : "Write"));
-            }
+            // for (const auto type : {Request::Type::Read, Request::Type::Write})
+            // {
+            //     s_num_RW_cycles[type] = 0;
+            //     register_stat(s_num_RW_cycles[type])
+            //         .name(fmt::format("CH{}_{}_cycles",
+            //                           m_channel_id,
+            //                           type == Request::Type::Read ? "Read" : "Write"));
+            // }
 
-            for (int opcode = 0; opcode <= Opcode::TMOD_P; opcode++)
-            {
-                s_num_PIM_cycles[opcode] = 0;
-                register_stat(s_num_PIM_cycles[opcode])
-                    .name(fmt::format("CH{}_PIM_{}_cycles", m_channel_id, ISR_to_str[opcode]))
-                    .desc(fmt::format("total number of PIM {} cycles", ISR_to_str[opcode]));
-            }
+            // for (int opcode = 0; opcode <= Opcode::TMOD_P; opcode++)
+            // {
+            //     s_num_PIM_cycles[opcode] = 0;
+            //     register_stat(s_num_PIM_cycles[opcode])
+            //         .name(fmt::format("CH{}_PIM_{}_cycles", m_channel_id, ISR_to_str[opcode]))
+            //         .desc(fmt::format("total number of PIM {} cycles", ISR_to_str[opcode]));
+            // }
 
             // for (int command_id = 0; command_id < m_dram->m_commands.size(); command_id++) {
             //     s_num_commands[command_id] = 0;
@@ -232,7 +232,8 @@ namespace Ramulator
                     req_it->issue = m_clk - 1;
                 m_dram->issue_command(req_it->command, req_it->addr_vec);
                 s_num_commands[req_it->command] += 1;
-                // std::cout << "Commands : " << Code_to_str[req_it->command] << " Clk : " << m_clk << std::endl;
+                // std::cout << "Commands : " << Code_to_str[req_it->command] << ", Clk : " << m_clk <<std::endl;
+                //<< ", "<<req_it->addr_vec[4]<<", "<<req_it->addr_vec[5]<<std::endl;
                 if (req_it->command == req_it->final_command)
                 {
                     int latency = m_dram->m_command_latencies(req_it->command);

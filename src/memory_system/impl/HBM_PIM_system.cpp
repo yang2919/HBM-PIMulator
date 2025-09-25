@@ -34,8 +34,8 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
 
     int current_mode = Mode::SB;
 
-    void apply_addr_mapp(Request &req, int channel_id) {
-        req.addr_vec.resize(5, -1);
+    void pim_addr_mapp(Request &req, int channel_id) {
+        req.addr_vec.resize(6, -1);
 
         req.addr_vec[0] = channel_id;
         req.addr_vec[1] = 0;
@@ -50,6 +50,29 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
               req.addr_vec[5] = req.poperand[0].addr3;
           }
         }
+    }
+
+    void dram_addr_mapp(Request &req) {
+        req.addr_vec.resize(6, -1);
+
+        int n_channel = m_dram->get_level_size("channel");
+        int n_pchannel = m_dram->get_level_size("pseudochannel");
+        int n_bankgroup = m_dram->get_level_size("bankgroup");
+        int n_bank = m_dram->get_level_size("bank");
+        int n_row = m_dram->get_level_size("row");
+        int n_column = m_dram->get_level_size("column");
+
+        int bank_size = n_row * n_column;
+        int bankgroup_size = bank_size * n_bank;
+        int channel_size = bankgroup_size * n_bankgroup;
+        Addr_t addr = req.addr;
+
+        req.addr_vec[0] = addr / channel_size; addr %= channel_size;
+        req.addr_vec[1] = 0;
+        req.addr_vec[2] = addr / bankgroup_size; addr %= bankgroup_size;
+        req.addr_vec[3] = addr / bank_size; addr %= bank_size;
+        req.addr_vec[4] = addr / n_column;
+        req.addr_vec[5] = addr % n_column;
     }
 
   public:
@@ -137,7 +160,7 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
               if (current_mode == Mode::PIM){
                 Request r = Request(Opcode::TMOD_P);
                 for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
-                  apply_addr_mapp(r, cnt);
+                  pim_addr_mapp(r, cnt);
                   // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
                   if (m_controllers[cnt]->send(r) == false) {
                     remaining_requests[cnt].push(r);
@@ -150,7 +173,7 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
               if (current_mode == Mode::AB){
                 Request r = Request(Opcode::TMOD_A);
                 for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
-                  apply_addr_mapp(r, cnt);
+                  pim_addr_mapp(r, cnt);
                   // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
                   if (m_controllers[cnt]->send(r) == false) {
                     remaining_requests[cnt].push(r);
@@ -162,7 +185,7 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
               }
             }
             
-            m_addr_mapper->apply(req);
+            dram_addr_mapp(req);
             int channel_id = req.addr_vec[0];
             if(m_controllers[channel_id]->send(req) == false){
               remaining_requests[channel_id].push(req);
@@ -175,7 +198,7 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
               if(current_mode == Mode::SB){
                 Request r = Request(Opcode::TMOD_A);
                 for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
-                  apply_addr_mapp(r, cnt);
+                  pim_addr_mapp(r, cnt);
                   // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
                   if (m_controllers[cnt]->send(r) == false) {
                     remaining_requests[cnt].push(r);
@@ -187,7 +210,7 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
               } else if(current_mode == Mode::PIM){
                 Request r = Request(Opcode::TMOD_P);
                 for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
-                  apply_addr_mapp(r, cnt);
+                  pim_addr_mapp(r, cnt);
                   // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
                   if (m_controllers[cnt]->send(r) == false) {
                     remaining_requests[cnt].push(r);
@@ -200,7 +223,7 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
             }
 
             for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
-              apply_addr_mapp(req, cnt);
+              pim_addr_mapp(req, cnt);
               // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
               if (m_controllers[cnt]->send(req) == false) {
                 remaining_requests[cnt].push(req);
@@ -214,7 +237,7 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
               if(current_mode == Mode::SB){
                 Request r = Request(Opcode::TMOD_A);
                 for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
-                  apply_addr_mapp(r, cnt);
+                  pim_addr_mapp(r, cnt);
                   // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
                   if (m_controllers[cnt]->send(r) == false) {
                     remaining_requests[cnt].push(r);
@@ -228,7 +251,7 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
               if(current_mode == Mode::AB){
                 Request r = Request(Opcode::TMOD_A);
                 for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
-                  apply_addr_mapp(r, cnt);
+                  pim_addr_mapp(r, cnt);
                   // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
                   if (m_controllers[cnt]->send(r) == false) {
                     remaining_requests[cnt].push(r);
@@ -241,7 +264,7 @@ class HBMPIMSystem  final : public IMemorySystem, public Implementation {
             }
 
             for (int cnt = 0; cnt < m_controllers.size(); cnt++) {
-              apply_addr_mapp(req, cnt);
+              pim_addr_mapp(req, cnt);
               // m_logger->info("[CLK {}] 1- Sending {} to channel {}", m_clk, aim_req.str(), channel_id);
               if (m_controllers[cnt]->send(req) == false) {
                 remaining_requests[cnt].push(req);

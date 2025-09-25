@@ -12,7 +12,7 @@ class HBM2 : public IDRAM, public Implementation {
       {"HBM2_2Gb",   {2<<10,  128,  {1, 2,  4,  2, 1<<14, 1<<6}}},
       {"HBM2_4Gb",   {4<<10,  128,  {1, 2,  4,  4, 1<<14, 1<<6}}},
       {"HBM2_8Gb",   {6<<10,  128,  {1, 2,  4,  4, 1<<15, 1<<6}}},
-      {"HBM2_PIM_2Gb", {8<<10,  128,  {1, 1,  4,  4, 1<<18, 1<<4}}},
+      {"HBM2_PIM_2Gb", {1<<9,  128,  {1, 1,  4,  4, 1<<13, 1<<5}}},
     };
 
     inline static const std::map<std::string, std::vector<int>> timing_presets = {
