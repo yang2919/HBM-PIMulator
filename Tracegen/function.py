@@ -153,5 +153,4 @@ class System(Memory):
                     for ch in out_bo.channel_index:
                         self.PIM_MOVE(hbm, ch, bk, num_rfs + i, row, col, op_trace)
             idx_cur_col += num_rfs_out
-        # return self.gather_from_DRAM_all_bank(out_bo, op_trace)
     

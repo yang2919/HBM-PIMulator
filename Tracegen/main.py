@@ -103,10 +103,10 @@ def generate_model_dic(model : str="Mixtral"):
         "Deepseek-MoE-16B" : {
             "x1" : torch.randn(2048, dtype=torch.float16),
             "w1" : {
-                f"expert{i}": torch.randn(2048 * 1408, dtype=torch.float16) for i in range(66)
+                f"expert{i}": torch.randn(2048 * 2048, dtype=torch.float16) for i in range(66)
             },
             "w2" : {
-                f"expert{i}": torch.randn(1408 * 2048, dtype=torch.float16) for i in range(66)
+                f"expert{i}": torch.randn(2048 * 2048, dtype=torch.float16) for i in range(66)
             }
         },
         "Qwen" : {
