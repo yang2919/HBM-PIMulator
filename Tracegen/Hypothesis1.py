@@ -18,19 +18,19 @@ class ModelMixtral(System):
             self.w1.append(dic_model["w1"][exp])
             self.w2.append(dic_model["w2"][exp])
 
-    def set_mapping(self):
+    def set_mapping(self, n = 2):
         self.row_idx = 0
         hbm = [0]
         channel = range(self.num_channels)
 
         self.w1_bo = []
         for w1 in self.w1:
-            self.w1_bo.append(self.create_BO(len(w1), hbm, channel, [self.row_idx, 0], False))
+            self.w1_bo.append(self.create_BO(len(w1) * (self.num_bankgroups * self.num_banks // n // 2), hbm, channel, [self.row_idx, 0], True))
             self.row_idx += self.w1_bo[-1].size // self.DRAM_column
         
         self.w2_bo = []
         for w2 in self.w2:
-            self.w2_bo.append(self.create_BO(len(w2), hbm, channel, [self.row_idx, 0], False))
+            self.w2_bo.append(self.create_BO(len(w2) * (self.num_bankgroups * self.num_banks // n // 2), hbm, channel, [self.row_idx, 0], True))
             self.row_idx += self.w2_bo[-1].size // self.DRAM_column
         
         self.x1_bo = self.create_BO(len(self.x1), hbm, channel, [self.row_idx, 0], False)
@@ -38,12 +38,12 @@ class ModelMixtral(System):
 
         self.o1_bo = []
         for _ in range(self.top_k):
-            self.o1_bo.append(self.create_BO(self.dim_expert * 16, hbm, channel, [self.row_idx, 0], False))
+            self.o1_bo.append(self.create_BO(self.w1_bo[0].size // self.x1_bo.size * 16, hbm, channel, [self.row_idx, 0], False))
             self.row_idx += (self.o1_bo[-1].size // self.DRAM_column) + 1
 
         self.x2_bo = []
         for _ in range(self.top_k):
-            self.x2_bo.append(self.create_BO(self.dim_expert, hbm, channel, [self.row_idx, 0], False))
+            self.x2_bo.append(self.create_BO(self.dim_expert * (self.num_bankgroups * self.num_banks // n  // 2), hbm, channel, [self.row_idx, 0], True))
             self.row_idx += (self.x2_bo[-1].size // self.DRAM_column) + 1
 
         self.o2_bo = []
@@ -122,3 +122,4 @@ class ModelMixtral(System):
 
         print("FFN completed")
         return self.o2[0].sum(dim=0)
+    

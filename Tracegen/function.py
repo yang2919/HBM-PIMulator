@@ -131,7 +131,7 @@ class System(Memory):
         while idx_cur_col < num_cols_per_bank:
             size_cur_col = min(num_rfs_out, num_cols_per_bank - idx_cur_col)
             init = False
-            for iter in range(in_bo1.size // num_rfs):
+            for iter in range(in_bo1.size // num_rfs + 1):
                 num_cur_rfs = min(num_rfs, in_bo1.size - num_rfs * iter)
                 for rf in range(num_cur_rfs):
                     row, col = in_bo1.get_index(self.DRAM_column, iter * num_rfs + rf)
@@ -171,4 +171,5 @@ class System(Memory):
                     for ch in out_bo.channel_index:
                         self.PIM_MOVE(hbm, ch, bk, num_rfs + i, row, col, op_trace)
             idx_cur_col += num_rfs_out
+            idx_cur_col = min(idx_cur_col, num_cols_per_bank)
     

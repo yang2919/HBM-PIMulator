@@ -94,12 +94,12 @@ namespace Ramulator
             //         .desc(fmt::format("total number of PIM {} cycles", ISR_to_str[opcode]));
             // }
 
-            // for (int command_id = 0; command_id < m_dram->m_commands.size(); command_id++) {
-            //     s_num_commands[command_id] = 0;
-            //     register_stat(s_num_commands[command_id])
-            //         .name(fmt::format("CH{}_num_{}_commands", m_channel_id, std::string(m_dram->m_commands(command_id))))
-            //         .desc(fmt::format("total number of {} commands", std::string(m_dram->m_commands(command_id))));
-            // }
+            for (int command_id = 0; command_id < m_dram->m_commands.size(); command_id++) {
+                s_num_commands[command_id] = 0;
+                register_stat(s_num_commands[command_id])
+                    .name(fmt::format("CH{}_num_{}_commands", m_channel_id, std::string(m_dram->m_commands(command_id))))
+                    .desc(fmt::format("total number of {} commands", std::string(m_dram->m_commands(command_id))));
+            }
             /*
                     register_stat(s_num_idle_cycles)
                         .name(fmt::format("CH{}_idle_cycles", m_channel_id))

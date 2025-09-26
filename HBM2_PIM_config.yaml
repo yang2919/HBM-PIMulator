@@ -1,7 +1,7 @@
 Frontend:
   impl: HBMPIMTrace
   clock_ratio: 8
-  path: ../Tracegen/trace.trace
+  path: ../Tracegen/hypothesis1_8B.trace
 
   Translation:
     impl: RandomTranslation

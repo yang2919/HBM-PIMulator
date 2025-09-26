@@ -15,7 +15,7 @@ def build_args():
     parser.add_argument("--num_banks", type=int, default=4)
     parser.add_argument("--num_groups", type=int, default=4)         # = BankGroup 개수
     parser.add_argument("--num_bankgroups", type=int, default=4)     # 코드 호환용(=num_groups)
-    parser.add_argument("--num_channels", type=int, default=16)
+    parser.add_argument("--num_channels", type=int, default=1)
 
     # PIM 레지스터 파일
     parser.add_argument("--PIM_grf", type=int, default=16)
@@ -35,7 +35,7 @@ def build_args():
     parser.add_argument("--FC_devices", type=int, default=1,
                         help="model_parallel일 때 디바이스 수")
     parser.add_argument("--op_trace", type=bool, default=True)
-    parser.add_argument("--trace_file", type=str, default="hypothesis1.trace",
+    parser.add_argument("--trace_file", type=str, default="hypothesis1_2B.trace",
                         help="트레이스 출력 파일 경로")
 
     # (선택) 멀티프로세싱용 스레드 수
@@ -103,10 +103,10 @@ def generate_model_dic(model : str="Mixtral"):
         "Deepseek-MoE-16B" : {
             "x1" : torch.randn(2048, dtype=torch.float16),
             "w1" : {
-                f"expert{i}": torch.randn(2048 * 768, dtype=torch.float16) for i in range(66)
+                f"expert{i}": torch.randn(2048 * 768, dtype=torch.float16) for i in range(1)
             },
             "w2" : {
-                f"expert{i}": torch.randn(768 * 2048, dtype=torch.float16) for i in range(66)
+                f"expert{i}": torch.randn(768 * 2048, dtype=torch.float16) for i in range(1)
             }
         },
         "Qwen" : {
