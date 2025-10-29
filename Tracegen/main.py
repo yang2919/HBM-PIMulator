@@ -23,7 +23,7 @@ def build_args():
 
     # Model hyper parameters
     parser.add_argument("--dim", type=int, default=2048)
-    parser.add_argument("--dim_expert", type=int, default=768)
+    parser.add_argument("--dim_expert", type=int, default=2048)
     parser.add_argument("--n_expert", type=int, default=1)
     parser.add_argument("--top_k", type=int, default=1)
 
@@ -35,7 +35,7 @@ def build_args():
     parser.add_argument("--FC_devices", type=int, default=1,
                         help="model_parallel일 때 디바이스 수")
     parser.add_argument("--op_trace", type=bool, default=True)
-    parser.add_argument("--trace_file", type=str, default="hypothesis1_2B.trace",
+    parser.add_argument("--trace_file", type=str, default="test.trace",
                         help="트레이스 출력 파일 경로")
 
     # (선택) 멀티프로세싱용 스레드 수
@@ -204,8 +204,8 @@ def main():
     #GEMV_example(args)
     torch.manual_seed(1)
     
-    model_dic = generate_model_dic("Deepseek-MoE-16B")
-    #model_dic = generate_model_dic("Mixtral")
+    #model_dic = generate_model_dic("Deepseek-MoE-16B")
+    model_dic = generate_model_dic("Qwen")
     print("Parameter generation finished...")
 
     torch.set_printoptions(threshold=10)

@@ -1,4 +1,4 @@
-from function import System
+from function_test import System
 import torch.nn.functional as F
 import torch
 
@@ -18,7 +18,7 @@ class ModelMixtral(System):
             self.w1.append(dic_model["w1"][exp])
             self.w2.append(dic_model["w2"][exp])
 
-    def set_mapping(self, n = 2):
+    def set_mapping(self, n = 4):
         self.row_idx = 0
         hbm = [0]
         channel = range(self.num_channels)
@@ -104,7 +104,7 @@ class ModelMixtral(System):
             self.o1.append(self.gather_from_DRAM_all_bank(self.o1_bo[i], op_trace))
             self.o1[-1] = self.o1[-1].sum(dim=1)
 
-        # Activation - SwiGLU
+        #Activation - SwiGLU
         self.x2 = self.o1
 
         # x2 Scatter
