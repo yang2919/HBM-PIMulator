@@ -163,6 +163,13 @@ class Memory():
                 B = self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[src2_index]
                 self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[dst_index] = self.ADD(A, B, False)
 
+    def PIM_WR_GRF(self, hbm_index, channel_index, dst_index, data, op_trace):
+        if op_trace and hbm_index == 0 and channel_index == 0:
+            self.file.write("PIM WR GRF,{}\n".format(dst_index))
+        for bg in range(self.num_bankgroups):
+            for _pim in range(self.num_banks // 2):
+                self.pim_device[hbm_index].HBM[channel_index].channel[bg].pim[_pim].grfs[dst_index] = data
+
     def ADD(self, A, B, profile: bool):
         result = A + B
         return result
