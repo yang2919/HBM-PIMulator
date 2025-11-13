@@ -21,7 +21,7 @@ def build_args():
     parser.add_argument("--PIM_srf", type=int, default=4)
 
     # LLM Model Hyper Parameters
-    parser.add_argument("--in_dim", type=int, default=768)
+    parser.add_argument("--in_dim", type=int, default=128)
     parser.add_argument("--out_dim", type=int, default=2048)
 
     # Execution/Trace Options

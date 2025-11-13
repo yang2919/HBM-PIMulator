@@ -150,7 +150,8 @@ class System(Memory):
                 iter_idx = interval_size * iter + idx_weight * input.shape[0]
                 num_cur_rfs = min(num_rfs, input.shape[0] - num_rfs * iter)
                 # Broadcast input vector
-                self.broadcast_to_GRF_all_bank(weight_bo.hbm_index, weight_bo.channel_index, input[iter*num_rfs:(iter+1)*num_rfs], op_trace)
+                if (interval_num == 1 and idx_weight == 0) or interval_num > 1:
+                    self.broadcast_to_GRF_all_bank(weight_bo.hbm_index, weight_bo.channel_index, input[iter*num_rfs:(iter+1)*num_rfs], op_trace)
 
                 # MAC weight matrix
                 for rf_w in range(num_rfs_out):
