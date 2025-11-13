@@ -98,10 +98,10 @@ class HBM2 : public IDRAM, public Implementation {
     );
 
     inline static constexpr ImplDef m_pim_requests = {
-"MAC", "MUL", "MAD", "ADD", 
+      "MAC", "MUL", "MAD", "ADD", 
       "MACRF", "MULRF", "MADRF", "ADDRF",
       "MOV", "FILL", "NOP", "JUMP", "EXIT",
-      "TMOD_A", "TMOD_P"    };
+      "TMOD_A", "TMOD_P", "RWR"};
 
     inline static const ImplLUT m_pim_requests_translations = LUT(
       m_pim_requests, m_commands, {
@@ -120,6 +120,7 @@ class HBM2 : public IDRAM, public Implementation {
         {"MOV", "DATA"},
         {"TMOD_A", "TMOD"},
         {"TMOD_P", "TMOD"},
+        {"RWR", "RWR"},
       }
     );
 
@@ -349,6 +350,7 @@ class HBM2 : public IDRAM, public Implementation {
       m_command_latencies("MAC") = 1;
       m_command_latencies("MUL") = 1;
       m_command_latencies("ADD") = 1;
+      m_command_latencies("RWR") = 1;
 
       m_command_latencies("TMOD") = 1;
       
@@ -382,12 +384,14 @@ class HBM2 : public IDRAM, public Implementation {
           
           // PIM <-> PIM
           // "PIM pipelining"
-          {.level = "channel", .preceding = {"MAC", "MUL", "ADD", "DATA", "MACRF", "MULRF", "ADDRF"}, .following = {"MAC", "MUL", "ADD", "DATA", "MACRF", "MULRF", "ADDRF"}, .latency = 4},
+          {.level = "channel", .preceding = {"MAC", "MUL", "ADD", "DATA", "MACRF", "MULRF", "ADDRF", "RWR"}, .following = {"MAC", "MUL", "ADD", "DATA", "MACRF", "MULRF", "ADDRF", "RWR"}, .latency = 4},
 
           // "PIM operation time"
           {.level = "channel", .preceding = {"MAC"}, .following = {"ACTA", "PREA", "ACT", "PRE", "TMOD", "CON"}, .latency = 20},
           {.level = "channel", .preceding = {"MUL", "ADD", "MACRF"}, .following = {"ACTA", "PREA", "ACT", "PRE", "TMOD", "CON"}, .latency = 16},
           {.level = "channel", .preceding = {"MULRF", "ADDRF", "DATA"}, .following = {"ACTA", "PREA", "ACT", "PRE", "TMOD", "CON"}, .latency = 12},
+          {.level = "channel", .preceding = {"RWR"}, .following = {"ACTA", "PREA", "ACT", "PRE", "TMOD", "CON"}, .latency = 4},
+
 
           // "Activate all banks before pim operation"
           {.level = "channel", .preceding = {"ACTA"}, .following = {"MAC", "MUL", "ADD", "DATA"}, .latency = V("nRRDS")*8},

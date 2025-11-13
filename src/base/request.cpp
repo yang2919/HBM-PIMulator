@@ -14,9 +14,12 @@ addr(addr), callback(callback) {};
 
 Request::Request(Addr_t addr, int type, int opcode, POperand_t pop):
 addr(addr), type_id(type), operation_id(opcode), poperand(pop) {
-    if(poperand[0].loc != LOCATE::BANK && poperand[1].loc != LOCATE::BANK){
-        operation_id += 4;
-    }
+    if(type == Request::Type::PIM)
+        if(opcode == Opcode::MAC || opcode == Opcode::ADD || opcode == Opcode::MUL){
+            if(poperand[0].loc != LOCATE::BANK && poperand[1].loc != LOCATE::BANK){
+                operation_id += 4;
+            }
+        }
 };
 
 Request::Request(int opcode): type_id(Type::PIM), operation_id(opcode) {};
