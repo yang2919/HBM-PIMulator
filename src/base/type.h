@@ -36,6 +36,7 @@ struct Opcode {
             EXIT,
             TMOD_A,
             TMOD_P,
+            RWR,
     };
 };
 

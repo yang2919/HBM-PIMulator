@@ -161,6 +161,7 @@ namespace Ramulator
       str_to_ISR["NOP"] = Opcode::NOP;
       str_to_ISR["JUMP"] = Opcode::JUMP;
       str_to_ISR["EXIT"] = Opcode::EXIT;
+      str_to_ISR["RWR"] = Opcode::RWR;
 
       str_to_mode["R"] = Request::Type::Read;
       str_to_mode["W"] = Request::Type::Write;

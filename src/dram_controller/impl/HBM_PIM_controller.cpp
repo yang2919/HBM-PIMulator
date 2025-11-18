@@ -510,6 +510,7 @@ namespace Ramulator
             ISR_to_str[Opcode::MOV] = "MOV";
             ISR_to_str[Opcode::TMOD_A] = "TMOD_A";
             ISR_to_str[Opcode::TMOD_P] = "TMOD_P";
+            ISR_to_str[Opcode::RWR] = "RWR";
 
             Code_to_str[0] = "ACT";
             Code_to_str[1] = "ACTA";

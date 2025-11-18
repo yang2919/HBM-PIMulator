@@ -150,7 +150,8 @@ class System(Memory):
                 iter_idx = interval_size * iter + idx_weight * input.shape[0]
                 num_cur_rfs = min(num_rfs, input.shape[0] - num_rfs * iter)
                 # Broadcast input vector
-                self.broadcast_to_GRF_all_bank(weight_bo.hbm_index, weight_bo.channel_index, input[iter*num_rfs:(iter+1)*num_rfs], op_trace)
+                if (interval_num == 1 and idx_weight == 0) or interval_num > 1:
+                    self.broadcast_to_GRF_all_bank(weight_bo.hbm_index, weight_bo.channel_index, input[iter*num_rfs:(iter+1)*num_rfs], op_trace)
 
                 # MAC weight matrix
                 for rf_w in range(num_rfs_out):
@@ -181,3 +182,66 @@ class System(Memory):
                         self.PIM_MOVE(hbm, ch, bk, num_rfs + i, row, col, op_trace)
             idx_weight += num_rfs_out
             idx_weight = min(idx_weight, max_idx_weight)
+
+    def PIM_GEMV_v2(self, input: torch.tensor, weight_bo: Buffer, output_bo: Buffer, op_trace: bool):
+        input = input.view(-1, 16) # transform the input vector as the form of data granularity
+
+        num_rfs = self.num_grfs // 2 # the number of registers output for input vector
+        num_rfs_out = self.num_grfs // 2 # the number of registers assigned for output vector
+
+        idx_input = 0
+        while idx_input < input.shape[0]:
+            idx_weight = 0
+            max_idx_weight = weight_bo.size // input.shape[0]
+
+            # Broadcast input vector
+            self.broadcast_to_GRF_all_bank(weight_bo.hbm_index, weight_bo.channel_index, input[idx_input:idx_input + num_rfs], op_trace)
+
+            while idx_weight < max_idx_weight:
+                size_weight = min(num_rfs_out, max_idx_weight - idx_weight)
+                init = False
+            
+                # MAC weight matrix
+                for rf_w in range(size_weight):
+                    for rf_x in range(num_rfs):
+                        row, col = weight_bo.get_index(self.DRAM_column, idx_input + (idx_weight + rf_w) * num_rfs + rf_x)
+                        bk = 0
+                        if row >= self.DRAM_row:
+                            row %= self.DRAM_row
+                            bk = 1
+                        for hbm in weight_bo.hbm_index:
+                            for ch in weight_bo.channel_index:
+                                if init == False:
+                                    self.PIM_MUL_RD_BANK(hbm, ch, bk, row, col, rf_x, num_rfs + rf_w, op_trace)
+                                else:
+                                    self.PIM_MAC_RD_BANK(hbm, ch, bk, row, col, rf_x, num_rfs + rf_w, op_trace)
+                    init = True
+                
+                # ADD previous output vector
+                if idx_input != 0:
+                    for i in range(size_weight):
+                        out_idx = idx_weight + i
+                        row, col = output_bo.get_index(self.DRAM_column, out_idx)
+                        bk = 0
+                        if row >= self.DRAM_row:
+                            row %= self.DRAM_row
+                            bk = 1
+                        for hbm in output_bo.hbm_index:
+                            for ch in output_bo.channel_index:
+                                self.PIM_ADD_RD_BANK(hbm, ch, bk, row, col, num_rfs + i, num_rfs + i, op_trace)
+
+                # MOVE output vector to bank
+                for i in range(size_weight):
+                    out_idx = idx_weight + i
+                    row, col = output_bo.get_index(self.DRAM_column, out_idx)
+                    bk = 0
+                    if row >= self.DRAM_row:
+                        row %= self.DRAM_row
+                        bk = 1
+                    for hbm in output_bo.hbm_index:
+                        for ch in output_bo.channel_index:
+                            self.PIM_MOVE(hbm, ch, bk, num_rfs + i, row, col, op_trace)
+                idx_weight += num_rfs_out
+                idx_weight = min(idx_weight, max_idx_weight)
+            idx_input += num_rfs
+            idx_input = min(idx_input, input.shape[0])

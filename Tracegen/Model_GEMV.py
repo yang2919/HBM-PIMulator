@@ -17,7 +17,7 @@ class ModelGEMV(System):
         self.w_bo = self.create_BO(self.in_dim * self.out_dim, hbm, channel, [self.row_idx, 0], True)
         self.row_idx += self.w_bo.size // self.DRAM_column
 
-        self.o_bo = self.create_BO(self.out_dim * 16, hbm, channel, [self.row_idx, 0], False)
+        self.o_bo = self.create_BO(self.out_dim * 16, hbm, channel, [self.row_idx, 0], True)
         self.row_idx += (self.o_bo.size // self.DRAM_column)+1
 
         print("Mapping finished... # of rows: ", self.row_idx)
@@ -29,7 +29,7 @@ class ModelGEMV(System):
 
     def GEMV_PIM(self, op_trace):
         # x * W GEMV
-        self.PIM_GEMV(self.x, self.w_bo, self.o_bo, op_trace)
+        self.PIM_GEMV_v2(self.x, self.w_bo, self.o_bo, op_trace)
 
         # output All-gather
         self.o = self.gather_from_DRAM_all_bank(self.o_bo, op_trace)
